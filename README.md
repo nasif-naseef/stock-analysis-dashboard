@@ -19,7 +19,8 @@ A comprehensive web application for automated stock data collection, analysis, a
 git clone https://github.com/nasif-naseef/stock-analysis-dashboard.git
 cd stock-analysis-dashboard
 
-# Set up environment variables
+# Set up environment variables (optional - for API tokens)
+# Edit .env with your API tokens if needed
 cp backend/.env.example .env
 
 # Start all services

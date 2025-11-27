@@ -20,7 +20,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # Redis Cache (Optional)
+  # Redis Cache
   redis:
     image: redis:7-alpine
     container_name: stock-analysis-redis

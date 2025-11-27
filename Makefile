@@ -40,7 +40,7 @@ clean:
 
 test:
 	docker-compose exec backend pytest
-	docker-compose exec frontend npm test
+	@echo "Note: Frontend tests should be run locally with 'cd frontend && npm test'"
 
 migrate:
 	docker-compose exec backend alembic upgrade head

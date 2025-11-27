@@ -100,9 +100,14 @@ docker-compose -f docker-compose.prod.yml logs -f
 
 ### Backup
 
-Backup database:
+Backup database (development):
 ```bash
 docker-compose exec db pg_dump -U stockuser stockdb > backup.sql
+```
+
+Backup database (production - substitute your actual credentials):
+```bash
+docker-compose -f docker-compose.prod.yml exec db pg_dump -U $POSTGRES_USER $POSTGRES_DB > backup.sql
 ```
 
 ### Updates
