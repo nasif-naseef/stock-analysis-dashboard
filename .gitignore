@@ -1,0 +1,27 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+
+# Virtual Environment
+venv/
+
+# Node.js dependencies
+node_modules/
+
+# dotenv environment variables file
+.env
+
+# Database files
+*.db
+
+# Log files
+*.log
+
+# macOS System files
+.DS_Store
+
+# Visual Studio Code files
+.vscode/
+
+# IntelliJ IDEA files
+.idea/
