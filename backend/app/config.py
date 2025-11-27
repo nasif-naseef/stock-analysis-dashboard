@@ -1,9 +1,19 @@
 """
 Application Configuration
 """
+from dataclasses import dataclass
 from pydantic_settings import BaseSettings
-from typing import List, Dict
+from typing import List, Dict, Optional
 from functools import lru_cache
+
+
+@dataclass
+class TickerConfig:
+    """Configuration for a single ticker with exchange and API identifiers"""
+    ticker: str
+    exchange: str
+    tr_v4_id: str  # Trading Central V4 API identifier (e.g., "EQ-0C00000ADA")
+    tr_v3_id: str  # Trading Central V3 API identifier (e.g., "US-123705")
 
 
 class Settings(BaseSettings):
@@ -23,7 +33,7 @@ class Settings(BaseSettings):
     # Tickers Configuration
     TICKERS: str = "AAPL,TSLA,NVDA"
     
-    # Individual ticker configurations
+    # Individual ticker configurations (raw dict for Pydantic)
     TICKER_CONFIGS: Dict[str, Dict[str, str]] = {
         "AAPL": {
             "exchange": "NASDAQ",
@@ -41,6 +51,26 @@ class Settings(BaseSettings):
             "tr_v3_id": "US-124689"
         }
     }
+    
+    def get_ticker_config(self, ticker: str) -> Optional[TickerConfig]:
+        """
+        Get TickerConfig for a specific ticker symbol.
+        
+        Args:
+            ticker: Stock ticker symbol (e.g., "AAPL")
+            
+        Returns:
+            TickerConfig object or None if not found
+        """
+        config = self.TICKER_CONFIGS.get(ticker)
+        if config:
+            return TickerConfig(
+                ticker=ticker,
+                exchange=config.get("exchange", ""),
+                tr_v4_id=config.get("tr_v4_id", ""),
+                tr_v3_id=config.get("tr_v3_id", "")
+            )
+        return None
     
     # Collection Settings
     COLLECTION_INTERVAL_HOURS: int = 1
