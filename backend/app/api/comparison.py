@@ -41,64 +41,30 @@ def _parse_tickers(tickers_str: str) -> List[str]:
     return [t.strip().upper() for t in tickers_str.split(',') if t.strip()]
 
 
+# NOTE: Static routes must be defined before dynamic routes with path parameters
+# to ensure correct route matching
+
 @router.get(
-    "/{ticker}",
-    summary="Compare data across periods",
-    description="Compare stock data for a ticker across multiple time periods"
+    "/data-types",
+    summary="List available data types",
+    description="Get list of data types available for comparison"
 )
-async def compare_periods(
-    ticker: str,
-    periods: str = Query(
-        default="1h,4h,1d,1w",
-        description="Comma-separated list of periods (e.g., 1h,4h,1d,1w)"
-    ),
-    data_type: Optional[DataType] = Query(
-        default=None,
-        description="Specific data type to compare. If not provided, compares all types."
-    ),
-    db: Session = Depends(get_db)
-) -> Dict[str, Any]:
+async def list_comparison_data_types() -> Dict[str, Any]:
     """
-    Compare data for a ticker across multiple time periods.
+    Get list of data types available for comparison.
     
-    - **ticker**: Stock ticker symbol
-    - **periods**: Comma-separated periods (e.g., "1h,4h,1d,1w")
-    - **data_type**: Optional specific data type to compare
-    
-    Returns comparison with absolute changes, percentage changes, and trend directions.
+    Returns available data types and their comparable metrics.
     """
-    ticker = _validate_ticker(ticker)
-    periods_list = _parse_periods(periods)
+    result = {
+        "data_types": {}
+    }
     
-    if not periods_list:
-        raise HTTPException(
-            status_code=400,
-            detail="At least one period must be specified"
-        )
+    for data_type, config in DATA_TYPE_CONFIG.items():
+        result["data_types"][data_type] = {
+            "metrics": config["metrics"]
+        }
     
-    # Validate periods format
-    valid_suffixes = ('h', 'd', 'w', 'm')
-    for period in periods_list:
-        if not any(period.lower().endswith(s) for s in valid_suffixes):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid period format: {period}. Use formats like 1h, 4h, 1d, 1w"
-            )
-    
-    if data_type:
-        # Compare specific data type
-        result = comparison_service.compare_periods(
-            db, ticker, data_type.value, periods_list
-        )
-        
-        if "error" in result:
-            raise HTTPException(status_code=400, detail=result["error"])
-        
-        return result
-    else:
-        # Compare all data types
-        result = comparison_service.get_all_comparisons(db, ticker, periods_list)
-        return result
+    return result
 
 
 @router.get(
@@ -172,23 +138,60 @@ async def compare_tickers(
 
 
 @router.get(
-    "/data-types",
-    summary="List available data types",
-    description="Get list of data types available for comparison"
+    "/{ticker}",
+    summary="Compare data across periods",
+    description="Compare stock data for a ticker across multiple time periods"
 )
-async def list_comparison_data_types() -> Dict[str, Any]:
+async def compare_periods(
+    ticker: str,
+    periods: str = Query(
+        default="1h,4h,1d,1w",
+        description="Comma-separated list of periods (e.g., 1h,4h,1d,1w)"
+    ),
+    data_type: Optional[DataType] = Query(
+        default=None,
+        description="Specific data type to compare. If not provided, compares all types."
+    ),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
     """
-    Get list of data types available for comparison.
+    Compare data for a ticker across multiple time periods.
     
-    Returns available data types and their comparable metrics.
+    - **ticker**: Stock ticker symbol
+    - **periods**: Comma-separated periods (e.g., "1h,4h,1d,1w")
+    - **data_type**: Optional specific data type to compare
+    
+    Returns comparison with absolute changes, percentage changes, and trend directions.
     """
-    result = {
-        "data_types": {}
-    }
+    ticker = _validate_ticker(ticker)
+    periods_list = _parse_periods(periods)
     
-    for data_type, config in DATA_TYPE_CONFIG.items():
-        result["data_types"][data_type] = {
-            "metrics": config["metrics"]
-        }
+    if not periods_list:
+        raise HTTPException(
+            status_code=400,
+            detail="At least one period must be specified"
+        )
     
-    return result
+    # Validate periods format
+    valid_suffixes = ('h', 'd', 'w', 'm')
+    for period in periods_list:
+        if not any(period.lower().endswith(s) for s in valid_suffixes):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid period format: {period}. Use formats like 1h, 4h, 1d, 1w"
+            )
+    
+    if data_type:
+        # Compare specific data type
+        result = comparison_service.compare_periods(
+            db, ticker, data_type.value, periods_list
+        )
+        
+        if "error" in result:
+            raise HTTPException(status_code=400, detail=result["error"])
+        
+        return result
+    else:
+        # Compare all data types
+        result = comparison_service.get_all_comparisons(db, ticker, periods_list)
+        return result
