@@ -34,7 +34,8 @@ export default function NewsSentiment() {
     { enabled: !!selectedTicker }
   );
 
-  const { data: comparisonData } = useQuery(
+  // Comparison data available for future use
+  useQuery(
     ['sentimentComparison', selectedTicker, timeRange],
     () => stockApi.compareOverTime(selectedTicker, timeRange, 'news_sentiment'),
     { enabled: !!selectedTicker }

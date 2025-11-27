@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-  Box, AppBar, Toolbar, Typography, Drawer, List, ListItem,
+  Box, AppBar, Toolbar, Typography, Drawer, List, ListItemButton,
   ListItemIcon, ListItemText, IconButton, Container, Divider
 } from '@mui/material';
 import {
@@ -38,8 +38,7 @@ export default function Layout({ children }) {
       <Divider />
       <List>
         {menuItems.map((item) => (
-          <ListItem 
-            button 
+          <ListItemButton 
             key={item.text} 
             onClick={() => {
               navigate(item.path);
@@ -59,7 +58,7 @@ export default function Layout({ children }) {
               {item.icon}
             </ListItemIcon>
             <ListItemText primary={item.text} />
-          </ListItem>
+          </ListItemButton>
         ))}
       </List>
     </div>

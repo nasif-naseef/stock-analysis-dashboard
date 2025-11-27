@@ -1,5 +1,5 @@
 import React from 'react';
-import { Doughnut, Line } from 'react-chartjs-2';
+import { Doughnut } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   ArcElement,
@@ -11,7 +11,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
-import { Box, Typography, Paper, Grid } from '@mui/material';
+import { Box, Typography, Paper } from '@mui/material';
 
 ChartJS.register(
   ArcElement,

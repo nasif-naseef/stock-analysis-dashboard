@@ -5,7 +5,7 @@ import {
   Chip, Alert, Divider
 } from '@mui/material';
 import { 
-  TrendingUp, TrendingDown, Warning, Refresh 
+  TrendingUp, TrendingDown, Warning 
 } from '@mui/icons-material';
 import stockApi from '../api/stockApi';
 import LoadingSpinner from '../components/LoadingSpinner';

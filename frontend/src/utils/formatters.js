@@ -1,5 +1,11 @@
 import { format, parseISO, formatDistanceToNow } from 'date-fns';
 
+// Number formatting constants
+const TRILLION = 1e12;
+const BILLION = 1e9;
+const MILLION = 1e6;
+const THOUSAND = 1e3;
+
 /**
  * Format a number with thousands separators
  */
@@ -20,10 +26,10 @@ export const formatLargeNumber = (num) => {
   const absNum = Math.abs(num);
   const sign = num < 0 ? '-' : '';
   
-  if (absNum >= 1e12) return `${sign}${(absNum / 1e12).toFixed(2)}T`;
-  if (absNum >= 1e9) return `${sign}${(absNum / 1e9).toFixed(2)}B`;
-  if (absNum >= 1e6) return `${sign}${(absNum / 1e6).toFixed(2)}M`;
-  if (absNum >= 1e3) return `${sign}${(absNum / 1e3).toFixed(2)}K`;
+  if (absNum >= TRILLION) return `${sign}${(absNum / TRILLION).toFixed(2)}T`;
+  if (absNum >= BILLION) return `${sign}${(absNum / BILLION).toFixed(2)}B`;
+  if (absNum >= MILLION) return `${sign}${(absNum / MILLION).toFixed(2)}M`;
+  if (absNum >= THOUSAND) return `${sign}${(absNum / THOUSAND).toFixed(2)}K`;
   
   return formatNumber(num);
 };

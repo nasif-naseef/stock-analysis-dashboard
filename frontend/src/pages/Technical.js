@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { useQuery } from 'react-query';
 import { Grid, Typography, Box, Paper, Divider, Chip, ToggleButtonGroup, ToggleButton } from '@mui/material';
-import { TrendingUp, TrendingDown, TrendingFlat } from '@mui/icons-material';
 import stockApi from '../api/stockApi';
 import TickerSelector from '../components/TickerSelector';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
+import { TECHNICAL_THRESHOLDS } from '../utils/constants';
+
+const { RSI_OVERBOUGHT, RSI_OVERSOLD } = TECHNICAL_THRESHOLDS;
 
 const DataCard = ({ title, value, subtitle, color, signal }) => (
   <Paper sx={{ p: 2, height: '100%' }}>
@@ -117,8 +119,8 @@ export default function Technical() {
             <DataCard 
               title="RSI (14)" 
               value={(technical.rsi || 0).toFixed(2)}
-              signal={technical.rsi > 70 ? 'Sell' : technical.rsi < 30 ? 'Buy' : 'Neutral'}
-              subtitle={technical.rsi > 70 ? 'Overbought' : technical.rsi < 30 ? 'Oversold' : 'Normal'}
+              signal={technical.rsi > RSI_OVERBOUGHT ? 'Sell' : technical.rsi < RSI_OVERSOLD ? 'Buy' : 'Neutral'}
+              subtitle={technical.rsi > RSI_OVERBOUGHT ? 'Overbought' : technical.rsi < RSI_OVERSOLD ? 'Oversold' : 'Normal'}
             />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
@@ -161,7 +163,7 @@ export default function Technical() {
             <Paper sx={{ p: 2 }}>
               <Typography variant="h6" gutterBottom>Oscillators</Typography>
               <Divider sx={{ mb: 2 }} />
-              <IndicatorRow name="RSI (14)" value={technical.rsi} signal={technical.rsi > 70 ? 'Sell' : technical.rsi < 30 ? 'Buy' : 'Neutral'} />
+              <IndicatorRow name="RSI (14)" value={technical.rsi} signal={technical.rsi > RSI_OVERBOUGHT ? 'Sell' : technical.rsi < RSI_OVERSOLD ? 'Buy' : 'Neutral'} />
               <IndicatorRow name="Stochastic %K" value={technical.stoch_k} signal={technical.stoch_signal} />
               <IndicatorRow name="CCI (20)" value={technical.cci} signal={technical.cci_signal} />
               <IndicatorRow name="ADX (14)" value={technical.adx} />

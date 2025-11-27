@@ -6,6 +6,7 @@ import stockApi from '../api/stockApi';
 import TickerSelector from '../components/TickerSelector';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
+import { formatLargeNumber } from '../utils/formatters';
 
 const DataCard = ({ title, value, subtitle, color, trend }) => (
   <Paper sx={{ p: 2, height: '100%' }}>
@@ -19,14 +20,6 @@ const DataCard = ({ title, value, subtitle, color, trend }) => (
     {subtitle && <Typography variant="body2" color="textSecondary">{subtitle}</Typography>}
   </Paper>
 );
-
-const formatLargeNumber = (num) => {
-  if (!num) return 'N/A';
-  if (num >= 1000000000) return `${(num / 1000000000).toFixed(2)}B`;
-  if (num >= 1000000) return `${(num / 1000000).toFixed(2)}M`;
-  if (num >= 1000) return `${(num / 1000).toFixed(2)}K`;
-  return num.toFixed(2);
-};
 
 export default function HedgeFund() {
   const [selectedTicker, setSelectedTicker] = useState('AAPL');

@@ -8,6 +8,9 @@ venv/
 # Node.js dependencies
 node_modules/
 
+# React build folder
+build/
+
 # dotenv environment variables file
 .env
 

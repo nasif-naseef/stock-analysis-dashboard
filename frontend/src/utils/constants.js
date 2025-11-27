@@ -66,6 +66,19 @@ export const SENTIMENT_THRESHOLDS = {
   bearish: -0.5,
 };
 
+// Technical indicator thresholds
+export const TECHNICAL_THRESHOLDS = {
+  RSI_OVERBOUGHT: 70,
+  RSI_OVERSOLD: 30,
+};
+
+// Platform distribution defaults (when breakdown not available)
+export const PLATFORM_DISTRIBUTION = {
+  TWITTER: 0.4,
+  REDDIT: 0.3,
+  STOCKTWITS: 0.3,
+};
+
 // API refresh intervals (in milliseconds)
 export const REFRESH_INTERVALS = {
   realtime: 30000,    // 30 seconds

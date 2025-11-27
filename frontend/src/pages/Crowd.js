@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useQuery } from 'react-query';
-import { Grid, Typography, Box, Paper, Divider, LinearProgress, Chip } from '@mui/material';
+import { Grid, Typography, Box, Paper, Divider, Chip } from '@mui/material';
 import stockApi from '../api/stockApi';
 import TickerSelector from '../components/TickerSelector';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
 import SentimentChart from '../components/charts/SentimentChart';
+import { PLATFORM_DISTRIBUTION } from '../utils/constants';
 
 const DataCard = ({ title, value, subtitle, color }) => (
   <Paper sx={{ p: 2, height: '100%' }}>
@@ -141,18 +142,18 @@ export default function Crowd() {
                 <>
                   <SentimentBar 
                     label="Twitter" 
-                    bullish={crowd.twitter_bullish || Math.floor(crowd.bullish_count * 0.4) || 0}
-                    bearish={crowd.twitter_bearish || Math.floor(crowd.bearish_count * 0.4) || 0}
+                    bullish={crowd.twitter_bullish || Math.floor(crowd.bullish_count * PLATFORM_DISTRIBUTION.TWITTER) || 0}
+                    bearish={crowd.twitter_bearish || Math.floor(crowd.bearish_count * PLATFORM_DISTRIBUTION.TWITTER) || 0}
                   />
                   <SentimentBar 
                     label="Reddit" 
-                    bullish={crowd.reddit_bullish || Math.floor(crowd.bullish_count * 0.3) || 0}
-                    bearish={crowd.reddit_bearish || Math.floor(crowd.bearish_count * 0.3) || 0}
+                    bullish={crowd.reddit_bullish || Math.floor(crowd.bullish_count * PLATFORM_DISTRIBUTION.REDDIT) || 0}
+                    bearish={crowd.reddit_bearish || Math.floor(crowd.bearish_count * PLATFORM_DISTRIBUTION.REDDIT) || 0}
                   />
                   <SentimentBar 
                     label="StockTwits" 
-                    bullish={crowd.stocktwits_bullish || Math.floor(crowd.bullish_count * 0.3) || 0}
-                    bearish={crowd.stocktwits_bearish || Math.floor(crowd.bearish_count * 0.3) || 0}
+                    bullish={crowd.stocktwits_bullish || Math.floor(crowd.bullish_count * PLATFORM_DISTRIBUTION.STOCKTWITS) || 0}
+                    bearish={crowd.stocktwits_bearish || Math.floor(crowd.bearish_count * PLATFORM_DISTRIBUTION.STOCKTWITS) || 0}
                   />
                 </>
               )}
