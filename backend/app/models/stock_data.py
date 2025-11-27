@@ -439,8 +439,8 @@ class ArticleAnalytics(Base):
     ticker = Column(String(10), nullable=False, index=True)
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     
-    # Article identification
-    article_id = Column(String(100), nullable=True, unique=True, index=True)
+    # Article identification - index for faster lookups, no unique constraint since nullable
+    article_id = Column(String(100), nullable=True, index=True)
     article_url = Column(Text, nullable=True)
     article_title = Column(Text, nullable=True)
     

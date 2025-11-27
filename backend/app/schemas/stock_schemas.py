@@ -5,9 +5,12 @@ This module contains all Pydantic models for API request/response validation
 and data serialization for stock analysis data.
 """
 from datetime import datetime
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Generic, TypeVar
 from pydantic import BaseModel, Field
 from enum import Enum
+
+# Type variable for generic paginated response
+T = TypeVar("T")
 
 
 class SentimentType(str, Enum):
@@ -615,9 +618,9 @@ class StockOverview(BaseModel):
     technical_indicators: Optional[List[TechnicalIndicatorResponse]] = None
 
 
-class PaginatedResponse(BaseModel):
-    """Schema for paginated responses"""
-    items: List[Any]
+class PaginatedResponse(BaseModel, Generic[T]):
+    """Schema for paginated responses with generic typing"""
+    items: List[T]
     total: int
     page: int
     per_page: int

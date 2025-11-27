@@ -17,23 +17,29 @@ import os
 # Add the parent directory to the path so we can import app modules
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Import application configuration and models
-from app.config import settings
-from app.database import Base
-
-# Import all models so they are registered with SQLAlchemy
-from app.models import (
-    AnalystRating,
-    NewsSentiment,
-    QuantamentalScore,
-    HedgeFundData,
-    CrowdStatistics,
-    BloggerSentiment,
-    TechnicalIndicator,
-    TargetPrice,
-    ArticleAnalytics,
-    DataCollectionLog,
-)
+# Import application configuration and models with error handling
+try:
+    from app.config import get_settings
+    from app.database import Base
+    
+    # Import all models so they are registered with SQLAlchemy
+    from app.models import (
+        AnalystRating,
+        NewsSentiment,
+        QuantamentalScore,
+        HedgeFundData,
+        CrowdStatistics,
+        BloggerSentiment,
+        TechnicalIndicator,
+        TargetPrice,
+        ArticleAnalytics,
+        DataCollectionLog,
+    )
+except ImportError as e:
+    raise ImportError(
+        f"Failed to import application modules. Ensure you're running alembic "
+        f"from the backend directory: {e}"
+    )
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -56,6 +62,7 @@ target_metadata = Base.metadata
 
 def get_url():
     """Get database URL from application settings"""
+    settings = get_settings()
     return settings.DATABASE_URL
 
 
