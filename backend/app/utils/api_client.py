@@ -204,7 +204,7 @@ class APIClient:
         
         return session
     
-    def _build_url(self, base_url: str, endpoint: str, path_params: List[str] = None) -> str:
+    def _build_url(self, base_url: str, endpoint: str, path_params: Optional[List[str]] = None) -> str:
         """
         Build URL with proper string concatenation.
         
@@ -327,7 +327,7 @@ class APIClient:
             API response as dictionary
         """
         if use_path_param:
-            # Append ticker to URL path (e.g., /api/widgets/crowd/generalData/AAPL)
+            # Append ticker to URL path (e.g., /widgets/crowd/generalData/AAPL)
             url = self._build_url(self.TIPRANKS_BASE_URL, endpoint, [ticker])
             params = extra_params or {}
         else:
