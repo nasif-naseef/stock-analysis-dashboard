@@ -362,7 +362,7 @@ class APIClient:
         
         Args:
             endpoint: API endpoint path
-            ticker_id: Trading Central V3 instrument ID (e.g., "US-123705")
+            ticker_id: Trading Central V3 instrument ID (e.g., "US-303648")
             extra_params: Additional query parameters
             
         Returns:
@@ -418,6 +418,7 @@ class APIClient:
     
     def fetch_tc_article_sentiments(self, entity_id: str) -> Optional[Dict[str, Any]]:
         """Fetch article sentiments from Trading Central V5 API with entity ID in path"""
+        # Note: V5 article-sentiments API uses same authentication pattern as V4 (Bearer token in header)
         return self.fetch_trading_central(self.TC_ARTICLE_SENTIMENTS, entity_id, use_path_id=True)
     
     def fetch_tc_technical_summaries(self, ticker_id: str) -> Optional[Dict[str, Any]]:
