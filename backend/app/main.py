@@ -19,6 +19,15 @@ from app.tasks.scheduler import (
 )
 from app.services.data_collection_service import data_collection_service
 
+# Import API routers
+from app.api import (
+    current_data_router,
+    history_router,
+    comparison_router,
+    collection_router,
+    dashboard_router,
+)
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -91,6 +100,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include API routers
+app.include_router(current_data_router)
+app.include_router(history_router)
+app.include_router(comparison_router)
+app.include_router(collection_router)
+app.include_router(dashboard_router)
 
 
 @app.get("/")
