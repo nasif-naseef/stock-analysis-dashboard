@@ -9,7 +9,6 @@ import logging
 from typing import Optional, Dict, Any, List
 from collections import OrderedDict
 from threading import Lock
-from urllib.parse import urljoin
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -205,6 +204,35 @@ class APIClient:
         
         return session
     
+    def _build_url(self, base_url: str, endpoint: str, path_params: List[str] = None) -> str:
+        """
+        Build URL with proper string concatenation.
+        
+        This replaces urljoin which incorrectly handles paths with leading slashes.
+        
+        Args:
+            base_url: Base URL (e.g., "https://widgets.tipranks.com/api")
+            endpoint: API endpoint path (e.g., "/widgets/crowd/generalData")
+            path_params: Optional list of path parameters to append
+            
+        Returns:
+            Properly constructed URL
+        """
+        # Normalize base URL (ensure trailing slash)
+        base = base_url.rstrip('/') + '/'
+        
+        # Normalize endpoint (remove leading slash)
+        endpoint = endpoint.lstrip('/')
+        
+        # Build path parameters if any
+        if path_params:
+            path_suffix = '/' + '/'.join(str(p) for p in path_params)
+        else:
+            path_suffix = ''
+        
+        # Concatenate: base + endpoint + path_params
+        return f"{base}{endpoint}{path_suffix}"
+    
     def fetch(
         self,
         url: str,
@@ -299,12 +327,12 @@ class APIClient:
             API response as dictionary
         """
         if use_path_param:
-            # Append ticker to URL path (e.g., /crowd/generalData/AAPL)
-            url = urljoin(self.TIPRANKS_BASE_URL, f"{endpoint}/{ticker}")
+            # Append ticker to URL path (e.g., /api/widgets/crowd/generalData/AAPL)
+            url = self._build_url(self.TIPRANKS_BASE_URL, endpoint, [ticker])
             params = extra_params or {}
         else:
             # Use ticker as query parameter (e.g., ?ticker=AAPL)
-            url = urljoin(self.TIPRANKS_BASE_URL, endpoint)
+            url = self._build_url(self.TIPRANKS_BASE_URL, endpoint)
             params = {"ticker": ticker}
             if extra_params:
                 params.update(extra_params)
@@ -335,12 +363,12 @@ class APIClient:
             return None
         
         if use_path_id:
-            # Append ID to URL path (e.g., /entities/EQ-0C00000ADA)
-            url = urljoin(self.TC_BASE_URL, f"{endpoint}/{ticker_id}")
+            # Append ID to URL path (e.g., /article-analytics/v4/entities/EQ-0C00000ADA)
+            url = self._build_url(self.TC_BASE_URL, endpoint, [ticker_id])
             params = extra_params or {}
         else:
             # Use ID as query parameter
-            url = urljoin(self.TC_BASE_URL, endpoint)
+            url = self._build_url(self.TC_BASE_URL, endpoint)
             params = {"id": ticker_id}
             if extra_params:
                 params.update(extra_params)
@@ -372,7 +400,7 @@ class APIClient:
             logger.warning("Trading Central token not configured")
             return None
         
-        url = urljoin(self.TC_BASE_URL, endpoint)
+        url = self._build_url(self.TC_BASE_URL, endpoint)
         params = {"id": ticker_id, "token": self.tc_token}
         if extra_params:
             params.update(extra_params)
