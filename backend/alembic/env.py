@@ -34,6 +34,8 @@ try:
         TargetPrice,
         ArticleAnalytics,
         DataCollectionLog,
+        TickerConfiguration,
+        APIConfiguration,
     )
 except ImportError as e:
     raise ImportError(

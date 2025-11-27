@@ -15,6 +15,10 @@ from app.services.dashboard_service import (
     DashboardService,
     dashboard_service,
 )
+from app.services.config_service import (
+    ConfigService,
+    config_service,
+)
 
 __all__ = [
     "DataCollectionService",
@@ -23,4 +27,6 @@ __all__ = [
     "comparison_service",
     "DashboardService",
     "dashboard_service",
+    "ConfigService",
+    "config_service",
 ]
