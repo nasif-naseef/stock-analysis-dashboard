@@ -11,11 +11,6 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.services.dashboard_service import dashboard_service, AlertSeverity
-from app.schemas.api_schemas import (
-    AlertsListResponse,
-    DashboardOverviewResponse,
-    CollectionSummaryResponse,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +27,7 @@ async def get_dashboard_overview(
 ) -> Dict[str, Any]:
     """
     Get dashboard overview with latest data for all tickers.
-    
+
     Returns aggregated data including:
     - Latest data for each ticker
     - Summary statistics (bullish/bearish counts, average sentiment)
@@ -60,10 +55,10 @@ async def get_dashboard_alerts(
 ) -> Dict[str, Any]:
     """
     Get alerts based on significant changes in data.
-    
+
     - **hours_ago**: Time period to check for changes (default 24 hours)
     - **severity**: Optional filter by severity level
-    
+
     Returns alerts for:
     - Rating changes
     - Sentiment shifts
@@ -80,7 +75,7 @@ async def get_dashboard_alerts(
                 status_code=400,
                 detail=f"Invalid severity: {severity}. Valid values: low, medium, high, critical"
             )
-    
+
     return dashboard_service.get_alerts(db, hours_ago, severity_filter)
 
 
@@ -100,7 +95,7 @@ async def get_collection_summary(
 ) -> Dict[str, Any]:
     """
     Get summary of data collection activity.
-    
+
     Returns:
     - Total collections attempted
     - Success/failure counts
@@ -122,9 +117,9 @@ async def get_ticker_overview(
 ) -> Dict[str, Any]:
     """
     Get overview data for a specific ticker.
-    
+
     Returns latest data for all data types for the specified ticker.
     """
     ticker = ticker.upper().strip()
-    
+
     return dashboard_service._get_ticker_overview(db, ticker)

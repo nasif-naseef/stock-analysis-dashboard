@@ -4,7 +4,7 @@ Collection API Router
 This module contains endpoints for managing data collection.
 """
 import logging
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
@@ -16,10 +16,7 @@ from app.tasks.scheduler import (
     get_scheduler_status,
     trigger_manual_collection,
 )
-from app.schemas.api_schemas import (
-    CollectionStatusResponse,
-    CollectionTriggerResponse,
-)
+from app.schemas.api_schemas import CollectionStatusResponse
 from app.utils.helpers import normalize_ticker, is_valid_ticker
 
 logger = logging.getLogger(__name__)
@@ -44,7 +41,7 @@ def _validate_ticker(ticker: str) -> str:
 async def get_collection_status():
     """
     Get current data collection scheduler status.
-    
+
     Returns information about:
     - Scheduler running state
     - Scheduled jobs and their next run times
@@ -63,12 +60,12 @@ async def trigger_all_collection(
 ) -> Dict[str, Any]:
     """
     Trigger data collection for all configured tickers.
-    
+
     The collection runs in the background and returns immediately.
     Use the /status endpoint to check progress.
     """
     background_tasks.add_task(trigger_manual_collection, None)
-    
+
     return {
         "status": "triggered",
         "message": f"Data collection started for all tickers: {settings.ticker_list}",
@@ -90,25 +87,25 @@ async def trigger_ticker_collection(
 ) -> Dict[str, Any]:
     """
     Trigger data collection for a specific ticker.
-    
+
     - **ticker**: Stock ticker symbol
     - **background**: If True, runs in background. If False, waits for completion.
-    
+
     Returns collection status or results depending on background parameter.
     """
     ticker = _validate_ticker(ticker)
-    
+
     # Check if ticker is in configured list
     if ticker not in settings.ticker_list:
         raise HTTPException(
             status_code=400,
             detail=f"Ticker {ticker} is not in configured tickers: {settings.ticker_list}"
         )
-    
+
     if background:
         # Run in background
         background_tasks.add_task(trigger_manual_collection, ticker)
-        
+
         return {
             "status": "triggered",
             "message": f"Data collection started for {ticker}",
@@ -136,7 +133,7 @@ async def trigger_ticker_collection(
 async def get_configured_tickers() -> Dict[str, Any]:
     """
     Get list of configured tickers for data collection.
-    
+
     Returns the ticker list and their configurations.
     """
     return {

@@ -59,17 +59,17 @@ async def get_analyst_ratings(
 ):
     """Get the latest analyst ratings for a ticker"""
     ticker = _validate_ticker(ticker)
-    
+
     data = db.query(AnalystRating).filter(
         AnalystRating.ticker == ticker
     ).order_by(desc(AnalystRating.timestamp)).first()
-    
+
     if not data:
         raise HTTPException(
             status_code=404,
             detail=f"No analyst ratings found for ticker {ticker}"
         )
-    
+
     return data
 
 
@@ -85,17 +85,17 @@ async def get_news_sentiment(
 ):
     """Get the latest news sentiment for a ticker"""
     ticker = _validate_ticker(ticker)
-    
+
     data = db.query(NewsSentiment).filter(
         NewsSentiment.ticker == ticker
     ).order_by(desc(NewsSentiment.timestamp)).first()
-    
+
     if not data:
         raise HTTPException(
             status_code=404,
             detail=f"No news sentiment found for ticker {ticker}"
         )
-    
+
     return data
 
 
@@ -111,17 +111,17 @@ async def get_quantamental_scores(
 ):
     """Get the latest quantamental scores for a ticker"""
     ticker = _validate_ticker(ticker)
-    
+
     data = db.query(QuantamentalScore).filter(
         QuantamentalScore.ticker == ticker
     ).order_by(desc(QuantamentalScore.timestamp)).first()
-    
+
     if not data:
         raise HTTPException(
             status_code=404,
             detail=f"No quantamental scores found for ticker {ticker}"
         )
-    
+
     return data
 
 
@@ -137,17 +137,17 @@ async def get_hedge_fund_data(
 ):
     """Get the latest hedge fund data for a ticker"""
     ticker = _validate_ticker(ticker)
-    
+
     data = db.query(HedgeFundData).filter(
         HedgeFundData.ticker == ticker
     ).order_by(desc(HedgeFundData.timestamp)).first()
-    
+
     if not data:
         raise HTTPException(
             status_code=404,
             detail=f"No hedge fund data found for ticker {ticker}"
         )
-    
+
     return data
 
 
@@ -163,17 +163,17 @@ async def get_crowd_statistics(
 ):
     """Get the latest crowd statistics for a ticker"""
     ticker = _validate_ticker(ticker)
-    
+
     data = db.query(CrowdStatistics).filter(
         CrowdStatistics.ticker == ticker
     ).order_by(desc(CrowdStatistics.timestamp)).first()
-    
+
     if not data:
         raise HTTPException(
             status_code=404,
             detail=f"No crowd statistics found for ticker {ticker}"
         )
-    
+
     return data
 
 
@@ -189,17 +189,17 @@ async def get_blogger_sentiment(
 ):
     """Get the latest blogger sentiment for a ticker"""
     ticker = _validate_ticker(ticker)
-    
+
     data = db.query(BloggerSentiment).filter(
         BloggerSentiment.ticker == ticker
     ).order_by(desc(BloggerSentiment.timestamp)).first()
-    
+
     if not data:
         raise HTTPException(
             status_code=404,
             detail=f"No blogger sentiment found for ticker {ticker}"
         )
-    
+
     return data
 
 
@@ -219,20 +219,20 @@ async def get_technical_indicators(
 ):
     """Get the latest technical indicators for a ticker"""
     ticker = _validate_ticker(ticker)
-    
+
     query = db.query(TechnicalIndicator).filter(TechnicalIndicator.ticker == ticker)
-    
+
     if timeframe:
         query = query.filter(TechnicalIndicator.timeframe == timeframe)
-    
+
     data = query.order_by(desc(TechnicalIndicator.timestamp)).first()
-    
+
     if not data:
         raise HTTPException(
             status_code=404,
             detail=f"No technical indicators found for ticker {ticker}"
         )
-    
+
     return data
 
 
@@ -248,15 +248,15 @@ async def get_target_price(
 ):
     """Get the latest target price for a ticker"""
     ticker = _validate_ticker(ticker)
-    
+
     data = db.query(TargetPrice).filter(
         TargetPrice.ticker == ticker
     ).order_by(desc(TargetPrice.timestamp)).first()
-    
+
     if not data:
         raise HTTPException(
             status_code=404,
             detail=f"No target prices found for ticker {ticker}"
         )
-    
+
     return data

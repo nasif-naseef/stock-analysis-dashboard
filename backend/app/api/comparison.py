@@ -11,11 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.services.comparison_service import comparison_service, DATA_TYPE_CONFIG
-from app.schemas.api_schemas import (
-    DataType,
-    ComparisonQuery,
-    MultiTickerComparisonQuery,
-)
+from app.schemas.api_schemas import DataType
 from app.utils.helpers import normalize_ticker, is_valid_ticker
 
 logger = logging.getLogger(__name__)
@@ -52,18 +48,18 @@ def _parse_tickers(tickers_str: str) -> List[str]:
 async def list_comparison_data_types() -> Dict[str, Any]:
     """
     Get list of data types available for comparison.
-    
+
     Returns available data types and their comparable metrics.
     """
     result = {
         "data_types": {}
     }
-    
+
     for data_type, config in DATA_TYPE_CONFIG.items():
         result["data_types"][data_type] = {
             "metrics": config["metrics"]
         }
-    
+
     return result
 
 
@@ -89,27 +85,27 @@ async def compare_tickers(
 ) -> Dict[str, Any]:
     """
     Compare data across multiple tickers for a given period.
-    
+
     - **tickers**: Comma-separated list of tickers (e.g., "AAPL,TSLA,NVDA")
     - **period**: Period for comparison (e.g., "1d")
     - **data_type**: Type of data to compare
-    
+
     Returns comparison showing changes for each ticker.
     """
     tickers_list = _parse_tickers(tickers)
-    
+
     if len(tickers_list) < 2:
         raise HTTPException(
             status_code=400,
             detail="At least 2 tickers are required for comparison"
         )
-    
+
     if len(tickers_list) > 10:
         raise HTTPException(
             status_code=400,
             detail="Maximum 10 tickers allowed for comparison"
         )
-    
+
     # Validate tickers
     for t in tickers_list:
         if not is_valid_ticker(t):
@@ -117,7 +113,7 @@ async def compare_tickers(
                 status_code=400,
                 detail=f"Invalid ticker format: {t}"
             )
-    
+
     # Validate period format
     valid_suffixes = ('h', 'd', 'w', 'm')
     period = period.strip().lower()
@@ -126,14 +122,14 @@ async def compare_tickers(
             status_code=400,
             detail=f"Invalid period format: {period}. Use formats like 1h, 4h, 1d, 1w"
         )
-    
+
     result = comparison_service.compare_tickers(
         db, tickers_list, data_type.value, period
     )
-    
+
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
-    
+
     return result
 
 
@@ -156,22 +152,22 @@ async def compare_periods(
 ) -> Dict[str, Any]:
     """
     Compare data for a ticker across multiple time periods.
-    
+
     - **ticker**: Stock ticker symbol
     - **periods**: Comma-separated periods (e.g., "1h,4h,1d,1w")
     - **data_type**: Optional specific data type to compare
-    
+
     Returns comparison with absolute changes, percentage changes, and trend directions.
     """
     ticker = _validate_ticker(ticker)
     periods_list = _parse_periods(periods)
-    
+
     if not periods_list:
         raise HTTPException(
             status_code=400,
             detail="At least one period must be specified"
         )
-    
+
     # Validate periods format
     valid_suffixes = ('h', 'd', 'w', 'm')
     for period in periods_list:
@@ -180,16 +176,16 @@ async def compare_periods(
                 status_code=400,
                 detail=f"Invalid period format: {period}. Use formats like 1h, 4h, 1d, 1w"
             )
-    
+
     if data_type:
         # Compare specific data type
         result = comparison_service.compare_periods(
             db, ticker, data_type.value, periods_list
         )
-        
+
         if "error" in result:
             raise HTTPException(status_code=400, detail=result["error"])
-        
+
         return result
     else:
         # Compare all data types
