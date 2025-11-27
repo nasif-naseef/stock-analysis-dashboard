@@ -130,19 +130,22 @@ class APIClient:
     TIPRANKS_NEWS = "/IB/news"
     TIPRANKS_STOCK_OVERVIEW = "/widgets/stockAnalysisOverview"
     TIPRANKS_ETORO_DATA = "/etoro/dataForTicker"
-    TIPRANKS_CROWD_DATA = "/widgets/crowd/generalData"
-    TIPRANKS_BLOGGERS = "/widgets/bloggers"
+    # Note: crowd and blogger endpoints use path parameters, not query params
+    TIPRANKS_CROWD_DATA = "/widgets/crowd/generalData"  # Append /{ticker} as path param
+    TIPRANKS_BLOGGERS = "/widgets/bloggers"  # Append /{ticker} as path param
     
     # Trading Central API endpoints
     TC_BASE_URL = "https://api.tradingcentral.com"
+    # V4 APIs use Bearer token in header
     TC_QUANTAMENTAL = "/quantamental/v4"
     TC_TARGET_PRICES = "/target-prices/v4"
-    TC_ARTICLE_ANALYTICS = "/article-analytics/v4/entities"
-    TC_ARTICLE_SENTIMENTS = "/article-sentiments/v5/entities"
-    TC_SUPPORT_RESISTANCE = "/supportandresistance/v3"
-    TC_STOP_TIMESERIES = "/stoptimeseries/v3"
-    TC_INSTRUMENT_EVENTS = "/instrumentevents/v3"
-    TC_TECHNICAL_SUMMARIES = "/technicalsummaries/v3"
+    TC_ARTICLE_ANALYTICS = "/article-analytics/v4/entities"  # Append /{entity_id}
+    TC_ARTICLE_SENTIMENTS = "/article-sentiments/v5/entities"  # Append /{entity_id}
+    # V3 APIs use token in URL query parameter
+    TC_SUPPORT_RESISTANCE = "/supportandresistance/v3"  # Uses ?token= and ?id=
+    TC_STOP_TIMESERIES = "/stoptimeseries/v3"  # Uses ?token= and ?id=
+    TC_INSTRUMENT_EVENTS = "/instrumentevents/v3"  # Uses ?token= and ?id=
+    TC_TECHNICAL_SUMMARIES = "/technicalsummaries/v3"  # Uses ?token= and ?id=
     
     def __init__(
         self,
@@ -280,7 +283,8 @@ class APIClient:
         self,
         endpoint: str,
         ticker: str,
-        extra_params: Optional[Dict[str, Any]] = None
+        extra_params: Optional[Dict[str, Any]] = None,
+        use_path_param: bool = False
     ) -> Optional[Dict[str, Any]]:
         """
         Fetch data from TipRanks API.
@@ -289,14 +293,21 @@ class APIClient:
             endpoint: API endpoint path
             ticker: Stock ticker symbol
             extra_params: Additional query parameters
+            use_path_param: If True, append ticker to URL path instead of query param
             
         Returns:
             API response as dictionary
         """
-        url = urljoin(self.TIPRANKS_BASE_URL, endpoint)
-        params = {"ticker": ticker}
-        if extra_params:
-            params.update(extra_params)
+        if use_path_param:
+            # Append ticker to URL path (e.g., /crowd/generalData/AAPL)
+            url = urljoin(self.TIPRANKS_BASE_URL, f"{endpoint}/{ticker}")
+            params = extra_params or {}
+        else:
+            # Use ticker as query parameter (e.g., ?ticker=AAPL)
+            url = urljoin(self.TIPRANKS_BASE_URL, endpoint)
+            params = {"ticker": ticker}
+            if extra_params:
+                params.update(extra_params)
         
         return self.fetch(url, params=params)
     
@@ -304,14 +315,54 @@ class APIClient:
         self,
         endpoint: str,
         ticker_id: str,
-        extra_params: Optional[Dict[str, Any]] = None
+        extra_params: Optional[Dict[str, Any]] = None,
+        use_path_id: bool = False
     ) -> Optional[Dict[str, Any]]:
         """
-        Fetch data from Trading Central API.
+        Fetch data from Trading Central V4 API with Bearer token in header.
         
         Args:
             endpoint: API endpoint path
             ticker_id: Trading Central instrument ID
+            extra_params: Additional query parameters
+            use_path_id: If True, append ID to URL path instead of query param
+            
+        Returns:
+            API response as dictionary
+        """
+        if not self.tc_token:
+            logger.warning("Trading Central token not configured")
+            return None
+        
+        if use_path_id:
+            # Append ID to URL path (e.g., /entities/EQ-0C00000ADA)
+            url = urljoin(self.TC_BASE_URL, f"{endpoint}/{ticker_id}")
+            params = extra_params or {}
+        else:
+            # Use ID as query parameter
+            url = urljoin(self.TC_BASE_URL, endpoint)
+            params = {"id": ticker_id}
+            if extra_params:
+                params.update(extra_params)
+        
+        headers = {"Authorization": f"Bearer {self.tc_token}"}
+        
+        return self.fetch(url, params=params, headers=headers)
+    
+    def fetch_trading_central_v3(
+        self,
+        endpoint: str,
+        ticker_id: str,
+        extra_params: Optional[Dict[str, Any]] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Fetch data from Trading Central V3 API with token in URL query parameter.
+        
+        V3 APIs use token as a query parameter instead of Bearer header.
+        
+        Args:
+            endpoint: API endpoint path
+            ticker_id: Trading Central V3 instrument ID (e.g., "US-123705")
             extra_params: Additional query parameters
             
         Returns:
@@ -322,13 +373,12 @@ class APIClient:
             return None
         
         url = urljoin(self.TC_BASE_URL, endpoint)
-        params = {"id": ticker_id}
+        params = {"id": ticker_id, "token": self.tc_token}
         if extra_params:
             params.update(extra_params)
         
-        headers = {"Authorization": f"Bearer {self.tc_token}"}
-        
-        return self.fetch(url, params=params, headers=headers)
+        # No Authorization header for V3 APIs - token is in URL
+        return self.fetch(url, params=params)
     
     def fetch_tipranks_analyst_ratings(self, ticker: str) -> Optional[Dict[str, Any]]:
         """Fetch analyst ratings from TipRanks"""
@@ -347,28 +397,44 @@ class APIClient:
         return self.fetch_tipranks(self.TIPRANKS_ETORO_DATA, ticker)
     
     def fetch_tipranks_crowd_data(self, ticker: str) -> Optional[Dict[str, Any]]:
-        """Fetch crowd data from TipRanks"""
-        return self.fetch_tipranks(self.TIPRANKS_CROWD_DATA, ticker)
+        """Fetch crowd data from TipRanks using path parameter"""
+        return self.fetch_tipranks(self.TIPRANKS_CROWD_DATA, ticker, use_path_param=True)
     
     def fetch_tipranks_bloggers(self, ticker: str) -> Optional[Dict[str, Any]]:
-        """Fetch blogger sentiment from TipRanks"""
-        return self.fetch_tipranks(self.TIPRANKS_BLOGGERS, ticker)
+        """Fetch blogger sentiment from TipRanks using path parameter"""
+        return self.fetch_tipranks(self.TIPRANKS_BLOGGERS, ticker, use_path_param=True)
     
     def fetch_tc_quantamental(self, ticker_id: str) -> Optional[Dict[str, Any]]:
-        """Fetch quantamental data from Trading Central"""
+        """Fetch quantamental data from Trading Central V4 API"""
         return self.fetch_trading_central(self.TC_QUANTAMENTAL, ticker_id)
     
     def fetch_tc_target_prices(self, ticker_id: str) -> Optional[Dict[str, Any]]:
-        """Fetch target prices from Trading Central"""
+        """Fetch target prices from Trading Central V4 API"""
         return self.fetch_trading_central(self.TC_TARGET_PRICES, ticker_id)
     
+    def fetch_tc_article_analytics(self, entity_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch article analytics from Trading Central V4 API with entity ID in path"""
+        return self.fetch_trading_central(self.TC_ARTICLE_ANALYTICS, entity_id, use_path_id=True)
+    
+    def fetch_tc_article_sentiments(self, entity_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch article sentiments from Trading Central V5 API with entity ID in path"""
+        return self.fetch_trading_central(self.TC_ARTICLE_SENTIMENTS, entity_id, use_path_id=True)
+    
     def fetch_tc_technical_summaries(self, ticker_id: str) -> Optional[Dict[str, Any]]:
-        """Fetch technical summaries from Trading Central"""
-        return self.fetch_trading_central(self.TC_TECHNICAL_SUMMARIES, ticker_id)
+        """Fetch technical summaries from Trading Central V3 API with token in URL"""
+        return self.fetch_trading_central_v3(self.TC_TECHNICAL_SUMMARIES, ticker_id)
     
     def fetch_tc_support_resistance(self, ticker_id: str) -> Optional[Dict[str, Any]]:
-        """Fetch support/resistance levels from Trading Central"""
-        return self.fetch_trading_central(self.TC_SUPPORT_RESISTANCE, ticker_id)
+        """Fetch support/resistance levels from Trading Central V3 API with token in URL"""
+        return self.fetch_trading_central_v3(self.TC_SUPPORT_RESISTANCE, ticker_id)
+    
+    def fetch_tc_stop_timeseries(self, ticker_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch stop timeseries from Trading Central V3 API with token in URL"""
+        return self.fetch_trading_central_v3(self.TC_STOP_TIMESERIES, ticker_id)
+    
+    def fetch_tc_instrument_events(self, ticker_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch instrument events from Trading Central V3 API with token in URL"""
+        return self.fetch_trading_central_v3(self.TC_INSTRUMENT_EVENTS, ticker_id)
     
     def close(self) -> None:
         """Close the session and release resources"""
