@@ -151,14 +151,18 @@ def mask_api_key(api_key: str) -> str:
     
     Shows the first 4 and last 4 characters, with asterisks in between.
     For short keys (< 12 chars), shows first 2 and last 2.
+    For very short keys (< 5 chars), shows all asterisks.
     """
     if not api_key:
         return "****"
     
     key_length = len(api_key)
     
-    if key_length <= 8:
-        # For very short keys, show first 2 and last 2
+    if key_length <= 4:
+        # For very short keys, mask entirely
+        return "*" * key_length
+    elif key_length <= 8:
+        # For short keys, show first 2 and last 2
         return f"{api_key[:2]}{'*' * (key_length - 4)}{api_key[-2:]}"
     elif key_length <= 12:
         # For medium keys, show first 3 and last 3

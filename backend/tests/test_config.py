@@ -55,6 +55,16 @@ class TestMaskApiKey:
         result = mask_api_key("")
         assert result == "****"
     
+    def test_mask_very_short_key(self):
+        """Test masking a very short API key (4 chars or less)"""
+        result = mask_api_key("abcd")
+        assert result == "****"
+        assert len(result) == 4
+        
+        result2 = mask_api_key("ab")
+        assert result2 == "**"
+        assert len(result2) == 2
+    
     def test_mask_preserves_length(self):
         """Test that masking preserves the original key length"""
         test_keys = ["12345", "123456789", "12345678901234567890"]

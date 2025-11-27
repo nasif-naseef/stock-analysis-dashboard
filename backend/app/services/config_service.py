@@ -113,10 +113,10 @@ class ConfigService:
         if not db_ticker:
             return None
         
+        # exclude_unset=True ensures we only get fields that were explicitly set
         update_data = ticker_data.model_dump(exclude_unset=True)
         for field, value in update_data.items():
-            if value is not None:
-                setattr(db_ticker, field, value)
+            setattr(db_ticker, field, value)
         
         db_ticker.updated_at = get_utc_now()
         db.commit()
@@ -203,10 +203,10 @@ class ConfigService:
         if not db_api_config:
             return None
         
+        # exclude_unset=True ensures we only get fields that were explicitly set
         update_data = api_data.model_dump(exclude_unset=True)
         for field, value in update_data.items():
-            if value is not None:
-                setattr(db_api_config, field, value)
+            setattr(db_api_config, field, value)
         
         db_api_config.updated_at = get_utc_now()
         db.commit()
