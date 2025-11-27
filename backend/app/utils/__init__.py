@@ -5,6 +5,7 @@ This module exports utility classes and functions for the stock analysis applica
 """
 from app.utils.helpers import (
     get_utc_now,
+    get_utc_now_aware,
     format_timestamp,
     parse_timestamp,
     is_valid_ticker,
@@ -31,6 +32,7 @@ from app.utils.data_processor import (
 __all__ = [
     # Helpers
     "get_utc_now",
+    "get_utc_now_aware",
     "format_timestamp",
     "parse_timestamp",
     "is_valid_ticker",

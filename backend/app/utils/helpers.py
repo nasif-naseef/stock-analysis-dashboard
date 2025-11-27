@@ -16,8 +16,24 @@ logger = logging.getLogger(__name__)
 
 
 def get_utc_now() -> datetime:
-    """Get current UTC timestamp"""
+    """
+    Get current UTC timestamp as a naive datetime.
+    
+    Returns a naive datetime representing the current UTC time.
+    This is suitable for database storage where the timestamp column
+    doesn't store timezone info but is understood to be UTC.
+    """
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def get_utc_now_aware() -> datetime:
+    """
+    Get current UTC timestamp as a timezone-aware datetime.
+    
+    Returns a timezone-aware datetime with UTC timezone.
+    Use this when you need to preserve timezone information.
+    """
+    return datetime.now(timezone.utc)
 
 
 def format_timestamp(dt: Optional[datetime] = None) -> str:
@@ -124,7 +140,7 @@ def calculate_percentage_change(old_value: float, new_value: float) -> Optional[
     """Calculate percentage change between two values"""
     if old_value == 0:
         return None
-    return ((new_value - old_value) / abs(old_value)) * 100
+    return ((new_value - old_value) / old_value) * 100
 
 
 def setup_logger(name: str, level: int = logging.INFO) -> logging.Logger:

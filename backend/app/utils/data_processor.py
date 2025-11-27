@@ -670,6 +670,10 @@ class DataFrameOptimizer:
         try:
             import pandas as pd
             
+            # Check if DataFrame is empty
+            if len(df) == 0:
+                return df
+            
             for col in df.select_dtypes(include=['object']).columns:
                 if df[col].nunique() / len(df) < 0.5:  # Less than 50% unique values
                     df[col] = df[col].astype('category')

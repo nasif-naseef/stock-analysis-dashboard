@@ -4,7 +4,7 @@ APScheduler Configuration for Automated Data Collection
 This module configures and manages the scheduler for automated data collection jobs.
 """
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 from threading import Lock
 
@@ -16,6 +16,7 @@ from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED, JobExecution
 from app.config import settings
 from app.database import SessionLocal
 from app.services.data_collection_service import data_collection_service
+from app.utils.helpers import get_utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,7 @@ def _job_listener(event: JobExecutionEvent) -> None:
     
     if event.job_id == 'collect_all_data':
         with _status_lock:
-            _last_collection_time = datetime.utcnow()
+            _last_collection_time = get_utc_now()
             if event.exception:
                 logger.error(f"Scheduled collection job failed: {event.exception}")
                 _last_collection_result = {
@@ -205,7 +206,7 @@ def trigger_manual_collection(ticker: Optional[str] = None) -> Dict[str, Any]:
         # Update status
         with _status_lock:
             global _last_collection_result, _last_collection_time
-            _last_collection_time = datetime.utcnow()
+            _last_collection_time = get_utc_now()
             _last_collection_result = result
         
         return result
