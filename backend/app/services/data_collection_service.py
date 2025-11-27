@@ -1,0 +1,902 @@
+"""
+Data Collection Service
+
+This module contains the main data collection service that fetches stock data
+from TipRanks and Trading Central APIs, processes it, and stores it in the database.
+"""
+import time
+import logging
+from typing import Dict, Any, Optional, List
+from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+from sqlalchemy.orm import Session
+
+from app.config import settings
+from app.models.stock_data import (
+    AnalystRating,
+    NewsSentiment,
+    QuantamentalScore,
+    HedgeFundData,
+    CrowdStatistics,
+    BloggerSentiment,
+    TechnicalIndicator,
+    TargetPrice,
+    DataCollectionLog,
+    TimeframeType,
+)
+from app.utils.api_client import APIClient
+from app.utils.data_processor import ResponseBuilder
+from app.utils.helpers import get_utc_now, is_valid_ticker, normalize_ticker
+
+logger = logging.getLogger(__name__)
+
+
+class DataCollectionService:
+    """
+    Service for collecting and storing stock data from multiple APIs.
+    
+    Features:
+    - Fetches data from TipRanks and Trading Central APIs
+    - Processes and validates API responses
+    - Stores data in database using SQLAlchemy models
+    - Handles errors and retries
+    - Logs all collection activities
+    - Returns collection statistics
+    """
+    
+    def __init__(self):
+        """Initialize the data collection service"""
+        self.api_client = APIClient(
+            timeout=settings.API_TIMEOUT,
+            max_retries=settings.MAX_RETRIES,
+            cache_ttl=settings.CACHE_TTL_SECONDS,
+            rate_limit=settings.API_RATE_LIMIT
+        )
+        self.response_builder = ResponseBuilder()
+    
+    def _log_collection(
+        self,
+        db: Session,
+        ticker: Optional[str],
+        data_type: str,
+        success: bool,
+        error_message: Optional[str],
+        duration_seconds: float,
+        records_collected: int,
+        source: str = "unknown",
+        api_endpoint: Optional[str] = None
+    ) -> None:
+        """
+        Log a collection attempt to the database.
+        
+        Args:
+            db: Database session
+            ticker: Stock ticker symbol
+            data_type: Type of data collected
+            success: Whether collection was successful
+            error_message: Error message if failed
+            duration_seconds: Duration of collection in seconds
+            records_collected: Number of records collected
+            source: Data source name
+            api_endpoint: API endpoint used
+        """
+        try:
+            log_entry = DataCollectionLog(
+                ticker=ticker,
+                data_type=data_type,
+                success=success,
+                error_message=error_message,
+                duration_seconds=duration_seconds,
+                records_collected=records_collected,
+                source=source,
+                api_endpoint=api_endpoint
+            )
+            db.add(log_entry)
+            db.commit()
+        except Exception as e:
+            logger.error(f"Failed to log collection: {e}")
+            db.rollback()
+    
+    def collect_analyst_ratings(self, ticker: str, db: Session) -> Dict[str, Any]:
+        """
+        Collect and store analyst ratings for a ticker.
+        
+        Args:
+            ticker: Stock ticker symbol
+            db: Database session
+            
+        Returns:
+            Dictionary with collection status and results
+        """
+        start_time = time.time()
+        ticker = normalize_ticker(ticker)
+        
+        try:
+            # Fetch data from TipRanks API
+            raw_data = self.api_client.fetch_tipranks_analyst_ratings(ticker)
+            
+            if not raw_data:
+                duration = time.time() - start_time
+                self._log_collection(
+                    db, ticker, "analyst_ratings", False,
+                    "No data received from API", duration, 0,
+                    "tipranks", APIClient.TIPRANKS_ANALYST_RATINGS
+                )
+                return {"status": "error", "message": "No data received", "records": 0}
+            
+            # Parse response
+            parsed_data = self.response_builder.build_analyst_ratings(raw_data, ticker)
+            
+            # Create database record
+            db_record = AnalystRating(
+                ticker=parsed_data["ticker"],
+                timestamp=parsed_data["timestamp"],
+                strong_buy_count=parsed_data["strong_buy_count"],
+                buy_count=parsed_data["buy_count"],
+                hold_count=parsed_data["hold_count"],
+                sell_count=parsed_data["sell_count"],
+                strong_sell_count=parsed_data["strong_sell_count"],
+                total_analysts=parsed_data["total_analysts"],
+                consensus_rating=parsed_data["consensus_rating"],
+                consensus_score=parsed_data["consensus_score"],
+                avg_price_target=parsed_data["avg_price_target"],
+                high_price_target=parsed_data["high_price_target"],
+                low_price_target=parsed_data["low_price_target"],
+                current_price=parsed_data["current_price"],
+                upside_potential=parsed_data["upside_potential"],
+                source=parsed_data["source"],
+                raw_data=parsed_data["raw_data"]
+            )
+            
+            db.add(db_record)
+            db.commit()
+            
+            # Log success
+            duration = time.time() - start_time
+            self._log_collection(
+                db, ticker, "analyst_ratings", True, None, duration, 1,
+                "tipranks", APIClient.TIPRANKS_ANALYST_RATINGS
+            )
+            
+            logger.info(f"Collected analyst ratings for {ticker}")
+            return {"status": "success", "records": 1}
+            
+        except Exception as e:
+            db.rollback()
+            duration = time.time() - start_time
+            error_msg = str(e)
+            logger.error(f"Error collecting analyst ratings for {ticker}: {error_msg}")
+            self._log_collection(
+                db, ticker, "analyst_ratings", False, error_msg, duration, 0,
+                "tipranks", APIClient.TIPRANKS_ANALYST_RATINGS
+            )
+            return {"status": "error", "message": error_msg, "records": 0}
+    
+    def collect_news_sentiment(self, ticker: str, db: Session) -> Dict[str, Any]:
+        """
+        Collect and store news sentiment for a ticker.
+        
+        Args:
+            ticker: Stock ticker symbol
+            db: Database session
+            
+        Returns:
+            Dictionary with collection status and results
+        """
+        start_time = time.time()
+        ticker = normalize_ticker(ticker)
+        
+        try:
+            # Fetch data from TipRanks API
+            raw_data = self.api_client.fetch_tipranks_news(ticker)
+            
+            if not raw_data:
+                duration = time.time() - start_time
+                self._log_collection(
+                    db, ticker, "news_sentiment", False,
+                    "No data received from API", duration, 0,
+                    "tipranks", APIClient.TIPRANKS_NEWS
+                )
+                return {"status": "error", "message": "No data received", "records": 0}
+            
+            # Parse response
+            parsed_data = self.response_builder.build_news_sentiment(raw_data, ticker)
+            
+            # Create database record
+            db_record = NewsSentiment(
+                ticker=parsed_data["ticker"],
+                timestamp=parsed_data["timestamp"],
+                sentiment=parsed_data["sentiment"],
+                sentiment_score=parsed_data["sentiment_score"],
+                buzz_score=parsed_data["buzz_score"],
+                news_score=parsed_data["news_score"],
+                total_articles=parsed_data["total_articles"],
+                positive_articles=parsed_data["positive_articles"],
+                negative_articles=parsed_data["negative_articles"],
+                neutral_articles=parsed_data["neutral_articles"],
+                sector_sentiment=parsed_data["sector_sentiment"],
+                sector_avg=parsed_data["sector_avg"],
+                source=parsed_data["source"],
+                raw_data=parsed_data["raw_data"]
+            )
+            
+            db.add(db_record)
+            db.commit()
+            
+            # Log success
+            duration = time.time() - start_time
+            self._log_collection(
+                db, ticker, "news_sentiment", True, None, duration, 1,
+                "tipranks", APIClient.TIPRANKS_NEWS
+            )
+            
+            logger.info(f"Collected news sentiment for {ticker}")
+            return {"status": "success", "records": 1}
+            
+        except Exception as e:
+            db.rollback()
+            duration = time.time() - start_time
+            error_msg = str(e)
+            logger.error(f"Error collecting news sentiment for {ticker}: {error_msg}")
+            self._log_collection(
+                db, ticker, "news_sentiment", False, error_msg, duration, 0,
+                "tipranks", APIClient.TIPRANKS_NEWS
+            )
+            return {"status": "error", "message": error_msg, "records": 0}
+    
+    def collect_quantamental_scores(self, ticker: str, db: Session) -> Dict[str, Any]:
+        """
+        Collect and store quantamental scores for a ticker.
+        
+        Args:
+            ticker: Stock ticker symbol
+            db: Database session
+            
+        Returns:
+            Dictionary with collection status and results
+        """
+        start_time = time.time()
+        ticker = normalize_ticker(ticker)
+        
+        try:
+            # Get Trading Central ID for this ticker
+            ticker_config = settings.TICKER_CONFIGS.get(ticker, {})
+            tc_id = ticker_config.get("tr_v4_id")
+            
+            if not tc_id:
+                duration = time.time() - start_time
+                self._log_collection(
+                    db, ticker, "quantamental_scores", False,
+                    "No Trading Central ID configured", duration, 0,
+                    "trading_central", APIClient.TC_QUANTAMENTAL
+                )
+                return {"status": "error", "message": "No Trading Central ID configured", "records": 0}
+            
+            # Fetch data from Trading Central API
+            raw_data = self.api_client.fetch_tc_quantamental(tc_id)
+            
+            if not raw_data:
+                duration = time.time() - start_time
+                self._log_collection(
+                    db, ticker, "quantamental_scores", False,
+                    "No data received from API", duration, 0,
+                    "trading_central", APIClient.TC_QUANTAMENTAL
+                )
+                return {"status": "error", "message": "No data received", "records": 0}
+            
+            # Parse response
+            parsed_data = self.response_builder.build_quantamental_scores(raw_data, ticker)
+            
+            # Create database record
+            db_record = QuantamentalScore(
+                ticker=parsed_data["ticker"],
+                timestamp=parsed_data["timestamp"],
+                overall_score=parsed_data["overall_score"],
+                quality_score=parsed_data["quality_score"],
+                value_score=parsed_data["value_score"],
+                growth_score=parsed_data["growth_score"],
+                momentum_score=parsed_data["momentum_score"],
+                revenue_growth=parsed_data["revenue_growth"],
+                earnings_growth=parsed_data["earnings_growth"],
+                profit_margin=parsed_data["profit_margin"],
+                debt_to_equity=parsed_data["debt_to_equity"],
+                return_on_equity=parsed_data["return_on_equity"],
+                pe_ratio=parsed_data["pe_ratio"],
+                pb_ratio=parsed_data["pb_ratio"],
+                ps_ratio=parsed_data["ps_ratio"],
+                peg_ratio=parsed_data["peg_ratio"],
+                ev_ebitda=parsed_data["ev_ebitda"],
+                sector_rank=parsed_data["sector_rank"],
+                industry_rank=parsed_data["industry_rank"],
+                overall_rank=parsed_data["overall_rank"],
+                source=parsed_data["source"],
+                raw_data=parsed_data["raw_data"]
+            )
+            
+            db.add(db_record)
+            db.commit()
+            
+            # Log success
+            duration = time.time() - start_time
+            self._log_collection(
+                db, ticker, "quantamental_scores", True, None, duration, 1,
+                "trading_central", APIClient.TC_QUANTAMENTAL
+            )
+            
+            logger.info(f"Collected quantamental scores for {ticker}")
+            return {"status": "success", "records": 1}
+            
+        except Exception as e:
+            db.rollback()
+            duration = time.time() - start_time
+            error_msg = str(e)
+            logger.error(f"Error collecting quantamental scores for {ticker}: {error_msg}")
+            self._log_collection(
+                db, ticker, "quantamental_scores", False, error_msg, duration, 0,
+                "trading_central", APIClient.TC_QUANTAMENTAL
+            )
+            return {"status": "error", "message": error_msg, "records": 0}
+    
+    def collect_hedge_fund_data(self, ticker: str, db: Session) -> Dict[str, Any]:
+        """
+        Collect and store hedge fund data for a ticker.
+        
+        Args:
+            ticker: Stock ticker symbol
+            db: Database session
+            
+        Returns:
+            Dictionary with collection status and results
+        """
+        start_time = time.time()
+        ticker = normalize_ticker(ticker)
+        
+        try:
+            # Fetch data from TipRanks eToro API
+            raw_data = self.api_client.fetch_tipranks_etoro_data(ticker)
+            
+            if not raw_data:
+                duration = time.time() - start_time
+                self._log_collection(
+                    db, ticker, "hedge_fund_data", False,
+                    "No data received from API", duration, 0,
+                    "tipranks", APIClient.TIPRANKS_ETORO_DATA
+                )
+                return {"status": "error", "message": "No data received", "records": 0}
+            
+            # Parse response
+            parsed_data = self.response_builder.build_hedge_fund_data(raw_data, ticker)
+            
+            # Create database record
+            db_record = HedgeFundData(
+                ticker=parsed_data["ticker"],
+                timestamp=parsed_data["timestamp"],
+                institutional_ownership_pct=parsed_data["institutional_ownership_pct"],
+                hedge_fund_count=parsed_data["hedge_fund_count"],
+                total_shares_held=parsed_data["total_shares_held"],
+                market_value_held=parsed_data["market_value_held"],
+                new_positions=parsed_data["new_positions"],
+                increased_positions=parsed_data["increased_positions"],
+                decreased_positions=parsed_data["decreased_positions"],
+                closed_positions=parsed_data["closed_positions"],
+                hedge_fund_sentiment=parsed_data["hedge_fund_sentiment"],
+                smart_money_score=parsed_data["smart_money_score"],
+                top_holders=parsed_data["top_holders"],
+                shares_change_qoq=parsed_data["shares_change_qoq"],
+                ownership_change_qoq=parsed_data["ownership_change_qoq"],
+                source=parsed_data["source"],
+                raw_data=parsed_data["raw_data"]
+            )
+            
+            db.add(db_record)
+            db.commit()
+            
+            # Log success
+            duration = time.time() - start_time
+            self._log_collection(
+                db, ticker, "hedge_fund_data", True, None, duration, 1,
+                "tipranks", APIClient.TIPRANKS_ETORO_DATA
+            )
+            
+            logger.info(f"Collected hedge fund data for {ticker}")
+            return {"status": "success", "records": 1}
+            
+        except Exception as e:
+            db.rollback()
+            duration = time.time() - start_time
+            error_msg = str(e)
+            logger.error(f"Error collecting hedge fund data for {ticker}: {error_msg}")
+            self._log_collection(
+                db, ticker, "hedge_fund_data", False, error_msg, duration, 0,
+                "tipranks", APIClient.TIPRANKS_ETORO_DATA
+            )
+            return {"status": "error", "message": error_msg, "records": 0}
+    
+    def collect_crowd_data(self, ticker: str, db: Session) -> Dict[str, Any]:
+        """
+        Collect and store crowd statistics for a ticker.
+        
+        Args:
+            ticker: Stock ticker symbol
+            db: Database session
+            
+        Returns:
+            Dictionary with collection status and results
+        """
+        start_time = time.time()
+        ticker = normalize_ticker(ticker)
+        
+        try:
+            # Fetch data from TipRanks API
+            raw_data = self.api_client.fetch_tipranks_crowd_data(ticker)
+            
+            if not raw_data:
+                duration = time.time() - start_time
+                self._log_collection(
+                    db, ticker, "crowd_statistics", False,
+                    "No data received from API", duration, 0,
+                    "tipranks", APIClient.TIPRANKS_CROWD_DATA
+                )
+                return {"status": "error", "message": "No data received", "records": 0}
+            
+            # Parse response
+            parsed_data = self.response_builder.build_crowd_statistics(raw_data, ticker)
+            
+            # Create database record
+            db_record = CrowdStatistics(
+                ticker=parsed_data["ticker"],
+                timestamp=parsed_data["timestamp"],
+                crowd_sentiment=parsed_data["crowd_sentiment"],
+                sentiment_score=parsed_data["sentiment_score"],
+                mentions_count=parsed_data["mentions_count"],
+                mentions_change=parsed_data["mentions_change"],
+                impressions=parsed_data["impressions"],
+                engagement_rate=parsed_data["engagement_rate"],
+                bullish_percent=parsed_data["bullish_percent"],
+                bearish_percent=parsed_data["bearish_percent"],
+                neutral_percent=parsed_data["neutral_percent"],
+                trending_score=parsed_data["trending_score"],
+                rank_day=parsed_data["rank_day"],
+                rank_week=parsed_data["rank_week"],
+                total_posts=parsed_data["total_posts"],
+                unique_users=parsed_data["unique_users"],
+                avg_sentiment_post=parsed_data["avg_sentiment_post"],
+                source=parsed_data["source"],
+                raw_data=parsed_data["raw_data"]
+            )
+            
+            db.add(db_record)
+            db.commit()
+            
+            # Log success
+            duration = time.time() - start_time
+            self._log_collection(
+                db, ticker, "crowd_statistics", True, None, duration, 1,
+                "tipranks", APIClient.TIPRANKS_CROWD_DATA
+            )
+            
+            logger.info(f"Collected crowd data for {ticker}")
+            return {"status": "success", "records": 1}
+            
+        except Exception as e:
+            db.rollback()
+            duration = time.time() - start_time
+            error_msg = str(e)
+            logger.error(f"Error collecting crowd data for {ticker}: {error_msg}")
+            self._log_collection(
+                db, ticker, "crowd_statistics", False, error_msg, duration, 0,
+                "tipranks", APIClient.TIPRANKS_CROWD_DATA
+            )
+            return {"status": "error", "message": error_msg, "records": 0}
+    
+    def collect_blogger_sentiment(self, ticker: str, db: Session) -> Dict[str, Any]:
+        """
+        Collect and store blogger sentiment for a ticker.
+        
+        Args:
+            ticker: Stock ticker symbol
+            db: Database session
+            
+        Returns:
+            Dictionary with collection status and results
+        """
+        start_time = time.time()
+        ticker = normalize_ticker(ticker)
+        
+        try:
+            # Fetch data from TipRanks API
+            raw_data = self.api_client.fetch_tipranks_bloggers(ticker)
+            
+            if not raw_data:
+                duration = time.time() - start_time
+                self._log_collection(
+                    db, ticker, "blogger_sentiment", False,
+                    "No data received from API", duration, 0,
+                    "tipranks", APIClient.TIPRANKS_BLOGGERS
+                )
+                return {"status": "error", "message": "No data received", "records": 0}
+            
+            # Parse response
+            parsed_data = self.response_builder.build_blogger_sentiment(raw_data, ticker)
+            
+            # Create database record
+            db_record = BloggerSentiment(
+                ticker=parsed_data["ticker"],
+                timestamp=parsed_data["timestamp"],
+                blogger_sentiment=parsed_data["blogger_sentiment"],
+                sentiment_score=parsed_data["sentiment_score"],
+                total_articles=parsed_data["total_articles"],
+                bullish_articles=parsed_data["bullish_articles"],
+                bearish_articles=parsed_data["bearish_articles"],
+                neutral_articles=parsed_data["neutral_articles"],
+                bullish_percent=parsed_data["bullish_percent"],
+                bearish_percent=parsed_data["bearish_percent"],
+                avg_blogger_accuracy=parsed_data["avg_blogger_accuracy"],
+                top_blogger_opinion=parsed_data["top_blogger_opinion"],
+                sentiment_change_1d=parsed_data["sentiment_change_1d"],
+                sentiment_change_1w=parsed_data["sentiment_change_1w"],
+                sentiment_change_1m=parsed_data["sentiment_change_1m"],
+                source=parsed_data["source"],
+                raw_data=parsed_data["raw_data"]
+            )
+            
+            db.add(db_record)
+            db.commit()
+            
+            # Log success
+            duration = time.time() - start_time
+            self._log_collection(
+                db, ticker, "blogger_sentiment", True, None, duration, 1,
+                "tipranks", APIClient.TIPRANKS_BLOGGERS
+            )
+            
+            logger.info(f"Collected blogger sentiment for {ticker}")
+            return {"status": "success", "records": 1}
+            
+        except Exception as e:
+            db.rollback()
+            duration = time.time() - start_time
+            error_msg = str(e)
+            logger.error(f"Error collecting blogger sentiment for {ticker}: {error_msg}")
+            self._log_collection(
+                db, ticker, "blogger_sentiment", False, error_msg, duration, 0,
+                "tipranks", APIClient.TIPRANKS_BLOGGERS
+            )
+            return {"status": "error", "message": error_msg, "records": 0}
+    
+    def collect_technical_indicators(self, ticker: str, db: Session) -> Dict[str, Any]:
+        """
+        Collect and store technical indicators for a ticker.
+        
+        Args:
+            ticker: Stock ticker symbol
+            db: Database session
+            
+        Returns:
+            Dictionary with collection status and results
+        """
+        start_time = time.time()
+        ticker = normalize_ticker(ticker)
+        
+        try:
+            # Get Trading Central ID for this ticker
+            ticker_config = settings.TICKER_CONFIGS.get(ticker, {})
+            tc_id = ticker_config.get("tr_v3_id")
+            
+            if not tc_id:
+                duration = time.time() - start_time
+                self._log_collection(
+                    db, ticker, "technical_indicators", False,
+                    "No Trading Central ID configured", duration, 0,
+                    "trading_central", APIClient.TC_TECHNICAL_SUMMARIES
+                )
+                return {"status": "error", "message": "No Trading Central ID configured", "records": 0}
+            
+            # Fetch data from Trading Central API
+            raw_data = self.api_client.fetch_tc_technical_summaries(tc_id)
+            
+            if not raw_data:
+                duration = time.time() - start_time
+                self._log_collection(
+                    db, ticker, "technical_indicators", False,
+                    "No data received from API", duration, 0,
+                    "trading_central", APIClient.TC_TECHNICAL_SUMMARIES
+                )
+                return {"status": "error", "message": "No data received", "records": 0}
+            
+            # Parse response for daily timeframe by default
+            parsed_data = self.response_builder.build_technical_indicators(
+                raw_data, ticker, TimeframeType.ONE_DAY
+            )
+            
+            # Create database record
+            db_record = TechnicalIndicator(
+                ticker=parsed_data["ticker"],
+                timestamp=parsed_data["timestamp"],
+                timeframe=parsed_data["timeframe"],
+                open_price=parsed_data["open_price"],
+                high_price=parsed_data["high_price"],
+                low_price=parsed_data["low_price"],
+                close_price=parsed_data["close_price"],
+                volume=parsed_data["volume"],
+                sma_20=parsed_data["sma_20"],
+                sma_50=parsed_data["sma_50"],
+                sma_200=parsed_data["sma_200"],
+                ema_12=parsed_data["ema_12"],
+                ema_26=parsed_data["ema_26"],
+                rsi_14=parsed_data["rsi_14"],
+                stoch_k=parsed_data["stoch_k"],
+                stoch_d=parsed_data["stoch_d"],
+                cci=parsed_data["cci"],
+                williams_r=parsed_data["williams_r"],
+                macd=parsed_data["macd"],
+                macd_signal=parsed_data["macd_signal"],
+                macd_histogram=parsed_data["macd_histogram"],
+                adx=parsed_data["adx"],
+                plus_di=parsed_data["plus_di"],
+                minus_di=parsed_data["minus_di"],
+                atr=parsed_data["atr"],
+                bollinger_upper=parsed_data["bollinger_upper"],
+                bollinger_middle=parsed_data["bollinger_middle"],
+                bollinger_lower=parsed_data["bollinger_lower"],
+                support_1=parsed_data["support_1"],
+                support_2=parsed_data["support_2"],
+                resistance_1=parsed_data["resistance_1"],
+                resistance_2=parsed_data["resistance_2"],
+                pivot_point=parsed_data["pivot_point"],
+                oscillator_signal=parsed_data["oscillator_signal"],
+                moving_avg_signal=parsed_data["moving_avg_signal"],
+                overall_signal=parsed_data["overall_signal"],
+                source=parsed_data["source"],
+                raw_data=parsed_data["raw_data"]
+            )
+            
+            db.add(db_record)
+            db.commit()
+            
+            # Log success
+            duration = time.time() - start_time
+            self._log_collection(
+                db, ticker, "technical_indicators", True, None, duration, 1,
+                "trading_central", APIClient.TC_TECHNICAL_SUMMARIES
+            )
+            
+            logger.info(f"Collected technical indicators for {ticker}")
+            return {"status": "success", "records": 1}
+            
+        except Exception as e:
+            db.rollback()
+            duration = time.time() - start_time
+            error_msg = str(e)
+            logger.error(f"Error collecting technical indicators for {ticker}: {error_msg}")
+            self._log_collection(
+                db, ticker, "technical_indicators", False, error_msg, duration, 0,
+                "trading_central", APIClient.TC_TECHNICAL_SUMMARIES
+            )
+            return {"status": "error", "message": error_msg, "records": 0}
+    
+    def collect_target_prices(self, ticker: str, db: Session) -> Dict[str, Any]:
+        """
+        Collect and store target prices for a ticker.
+        
+        Args:
+            ticker: Stock ticker symbol
+            db: Database session
+            
+        Returns:
+            Dictionary with collection status and results
+        """
+        start_time = time.time()
+        ticker = normalize_ticker(ticker)
+        
+        try:
+            # Get Trading Central ID for this ticker
+            ticker_config = settings.TICKER_CONFIGS.get(ticker, {})
+            tc_id = ticker_config.get("tr_v4_id")
+            
+            if not tc_id:
+                duration = time.time() - start_time
+                self._log_collection(
+                    db, ticker, "target_prices", False,
+                    "No Trading Central ID configured", duration, 0,
+                    "trading_central", APIClient.TC_TARGET_PRICES
+                )
+                return {"status": "error", "message": "No Trading Central ID configured", "records": 0}
+            
+            # Fetch data from Trading Central API
+            raw_data = self.api_client.fetch_tc_target_prices(tc_id)
+            
+            if not raw_data:
+                duration = time.time() - start_time
+                self._log_collection(
+                    db, ticker, "target_prices", False,
+                    "No data received from API", duration, 0,
+                    "trading_central", APIClient.TC_TARGET_PRICES
+                )
+                return {"status": "error", "message": "No data received", "records": 0}
+            
+            # Parse response - may return multiple records
+            parsed_records = self.response_builder.build_target_prices(raw_data, ticker)
+            
+            records_added = 0
+            for parsed_data in parsed_records:
+                # Create database record
+                db_record = TargetPrice(
+                    ticker=parsed_data["ticker"],
+                    timestamp=parsed_data["timestamp"],
+                    analyst_name=parsed_data["analyst_name"],
+                    analyst_firm=parsed_data["analyst_firm"],
+                    target_price=parsed_data["target_price"],
+                    previous_target=parsed_data["previous_target"],
+                    target_change=parsed_data["target_change"],
+                    target_change_pct=parsed_data["target_change_pct"],
+                    rating=parsed_data["rating"],
+                    previous_rating=parsed_data["previous_rating"],
+                    rating_changed=parsed_data["rating_changed"],
+                    current_price_at_rating=parsed_data["current_price_at_rating"],
+                    upside_to_target=parsed_data["upside_to_target"],
+                    analyst_accuracy_score=parsed_data["analyst_accuracy_score"],
+                    rating_date=parsed_data["rating_date"],
+                    source=parsed_data["source"],
+                    raw_data=parsed_data["raw_data"]
+                )
+                db.add(db_record)
+                records_added += 1
+            
+            db.commit()
+            
+            # Log success
+            duration = time.time() - start_time
+            self._log_collection(
+                db, ticker, "target_prices", True, None, duration, records_added,
+                "trading_central", APIClient.TC_TARGET_PRICES
+            )
+            
+            logger.info(f"Collected {records_added} target prices for {ticker}")
+            return {"status": "success", "records": records_added}
+            
+        except Exception as e:
+            db.rollback()
+            duration = time.time() - start_time
+            error_msg = str(e)
+            logger.error(f"Error collecting target prices for {ticker}: {error_msg}")
+            self._log_collection(
+                db, ticker, "target_prices", False, error_msg, duration, 0,
+                "trading_central", APIClient.TC_TARGET_PRICES
+            )
+            return {"status": "error", "message": error_msg, "records": 0}
+    
+    def collect_all_data_for_ticker(self, ticker: str, db: Session) -> Dict[str, Any]:
+        """
+        Collect all data types for a single ticker.
+        
+        Args:
+            ticker: Stock ticker symbol
+            db: Database session
+            
+        Returns:
+            Dictionary with collection results for each data type
+        """
+        if not is_valid_ticker(ticker):
+            return {"error": f"Invalid ticker: {ticker}"}
+        
+        ticker = normalize_ticker(ticker)
+        logger.info(f"Starting data collection for {ticker}")
+        
+        start_time = time.time()
+        results = {
+            "ticker": ticker,
+            "timestamp": get_utc_now().isoformat(),
+            "data_types": {}
+        }
+        
+        # Collect all data types
+        collection_methods = [
+            ("analyst_ratings", self.collect_analyst_ratings),
+            ("news_sentiment", self.collect_news_sentiment),
+            ("quantamental_scores", self.collect_quantamental_scores),
+            ("hedge_fund_data", self.collect_hedge_fund_data),
+            ("crowd_statistics", self.collect_crowd_data),
+            ("blogger_sentiment", self.collect_blogger_sentiment),
+            ("technical_indicators", self.collect_technical_indicators),
+            ("target_prices", self.collect_target_prices),
+        ]
+        
+        total_records = 0
+        success_count = 0
+        error_count = 0
+        
+        for data_type, method in collection_methods:
+            result = method(ticker, db)
+            results["data_types"][data_type] = result
+            
+            if result.get("status") == "success":
+                success_count += 1
+                total_records += result.get("records", 0)
+            else:
+                error_count += 1
+        
+        duration = time.time() - start_time
+        results["summary"] = {
+            "total_data_types": len(collection_methods),
+            "successful": success_count,
+            "failed": error_count,
+            "total_records": total_records,
+            "duration_seconds": round(duration, 2)
+        }
+        
+        logger.info(
+            f"Completed data collection for {ticker}: "
+            f"{success_count} successful, {error_count} failed, "
+            f"{total_records} records in {duration:.2f}s"
+        )
+        
+        return results
+    
+    def collect_all_tickers(self, db: Session) -> Dict[str, Any]:
+        """
+        Collect data for all configured tickers.
+        
+        Args:
+            db: Database session
+            
+        Returns:
+            Dictionary with collection results for all tickers
+        """
+        start_time = time.time()
+        tickers = settings.ticker_list
+        
+        logger.info(f"Starting data collection for {len(tickers)} tickers: {tickers}")
+        
+        results = {
+            "timestamp": get_utc_now().isoformat(),
+            "tickers": {}
+        }
+        
+        total_records = 0
+        success_count = 0
+        partial_count = 0
+        error_count = 0
+        
+        for ticker in tickers:
+            ticker_result = self.collect_all_data_for_ticker(ticker, db)
+            results["tickers"][ticker] = ticker_result
+            
+            summary = ticker_result.get("summary", {})
+            ticker_records = summary.get("total_records", 0)
+            total_records += ticker_records
+            
+            # Categorize ticker result
+            if summary.get("failed", 0) == 0:
+                success_count += 1
+            elif summary.get("successful", 0) > 0:
+                partial_count += 1
+            else:
+                error_count += 1
+        
+        duration = time.time() - start_time
+        results["summary"] = {
+            "total_tickers": len(tickers),
+            "fully_successful": success_count,
+            "partially_successful": partial_count,
+            "failed": error_count,
+            "total_records": total_records,
+            "duration_seconds": round(duration, 2)
+        }
+        
+        logger.info(
+            f"Completed data collection for all tickers: "
+            f"{success_count} successful, {partial_count} partial, {error_count} failed, "
+            f"{total_records} total records in {duration:.2f}s"
+        )
+        
+        return results
+    
+    def close(self) -> None:
+        """Clean up resources"""
+        self.api_client.close()
+
+
+# Create a singleton instance
+data_collection_service = DataCollectionService()
