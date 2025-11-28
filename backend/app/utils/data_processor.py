@@ -194,6 +194,10 @@ class ResponseBuilder:
         """
         Build news sentiment data from API response.
         
+        Uses correct field paths from TipRanks API:
+        - newsSentimentScore.stock for stock sentiment
+        - newsSentimentScore.sector for sector sentiment
+        
         Args:
             raw_data: Raw API response
             ticker: Stock ticker symbol
@@ -206,32 +210,57 @@ class ResponseBuilder:
             if isinstance(raw_data, list):
                 raw_data = raw_data[0] if raw_data else {}
             
-            sentiment_data = raw_data.get("sentiment", {})
+            # Extract from newsSentimentScore (correct path per notebook)
+            sentiment_data = raw_data.get("newsSentimentScore", {}) or {}
+            stock_data = sentiment_data.get("stock", {}) or {}
+            sector_data = sentiment_data.get("sector", {}) or {}
             
-            # Extract counts
-            positive = safe_int(sentiment_data.get("bullish", 0)) or 0
-            negative = safe_int(sentiment_data.get("bearish", 0)) or 0
-            neutral_count = safe_int(sentiment_data.get("neutral", 0)) or 0
-            total = positive + negative + neutral_count
+            # Stock sentiment scores
+            stock_bullish = safe_float(stock_data.get("bullishPercent"))
+            stock_bearish = safe_float(stock_data.get("bearishPercent"))
             
-            # Sentiment score
-            score = safe_float(sentiment_data.get("score"))
+            # Sector sentiment scores
+            sector_bullish = safe_float(sector_data.get("bullishPercent"))
+            sector_bearish = safe_float(sector_data.get("bearishPercent"))
+            
+            # Calculate overall score (stock bullish - bearish as percentage)
+            score = None
+            if stock_bullish is not None and stock_bearish is not None:
+                score = stock_bullish - stock_bearish
+            
+            # Determine sentiment based on stock bullish/bearish
+            sentiment = None
+            if stock_bullish is not None and stock_bearish is not None:
+                if stock_bullish > stock_bearish:
+                    sentiment = determine_sentiment(50)  # BULLISH
+                elif stock_bearish > stock_bullish:
+                    sentiment = determine_sentiment(-50)  # BEARISH
+                else:
+                    sentiment = determine_sentiment(0)  # NEUTRAL
+            
+            # Legacy fields for backwards compatibility
             buzz = safe_float(raw_data.get("buzz"))
             news_score = safe_float(raw_data.get("newsScore"))
             
             return {
                 "ticker": ticker,
                 "timestamp": get_utc_now(),
-                "sentiment": determine_sentiment(score),
+                "sentiment": sentiment,
                 "sentiment_score": score,
                 "buzz_score": buzz,
                 "news_score": news_score,
-                "total_articles": total,
-                "positive_articles": positive,
-                "negative_articles": negative,
-                "neutral_articles": neutral_count,
-                "sector_sentiment": safe_float(raw_data.get("sectorSentiment")),
-                "sector_avg": safe_float(raw_data.get("sectorAvg")),
+                # Article counts not available in newsSentimentScore format
+                # Using 0 for backwards compatibility with database model defaults
+                "total_articles": 0,
+                "positive_articles": 0,
+                "negative_articles": 0,
+                "neutral_articles": 0,
+                "sector_sentiment": sector_bullish,
+                "sector_avg": sector_bearish,
+                "stock_bullish_score": stock_bullish,
+                "stock_bearish_score": stock_bearish,
+                "sector_bullish_score": sector_bullish,
+                "sector_bearish_score": sector_bearish,
                 "source": "tipranks",
                 "raw_data": raw_data
             }
@@ -300,6 +329,8 @@ class ResponseBuilder:
         """
         Build hedge fund data from TipRanks/eToro API response.
         
+        Uses correct field path: overview.hedgeFundData
+        
         Args:
             raw_data: Raw API response
             ticker: Stock ticker symbol
@@ -312,8 +343,15 @@ class ResponseBuilder:
             if isinstance(raw_data, list):
                 raw_data = raw_data[0] if raw_data else {}
             
-            hedge_fund = raw_data.get("hedgeFundData", {})
-            institutional = raw_data.get("institutional", {})
+            # Extract from overview.hedgeFundData (correct path per notebook)
+            overview = raw_data.get("overview", {}) or {}
+            hedge_fund = overview.get("hedgeFundData", {}) or {}
+            
+            # Fallback to direct hedgeFundData if overview path doesn't exist
+            if not hedge_fund:
+                hedge_fund = raw_data.get("hedgeFundData", {}) or {}
+            
+            institutional = raw_data.get("institutional", {}) or {}
             
             # Position changes
             new_pos = safe_int(hedge_fund.get("newPositions", 0)) or 0
@@ -321,8 +359,20 @@ class ResponseBuilder:
             decreased = safe_int(hedge_fund.get("decreasedPositions", 0)) or 0
             closed = safe_int(hedge_fund.get("soldOutPositions", 0)) or 0
             
-            # Calculate sentiment
-            if increased + new_pos > decreased + closed:
+            # Extract sentiment/trend fields from notebook format
+            sentiment_val = safe_float(hedge_fund.get("sentiment"))
+            trend_action = safe_int(hedge_fund.get("trendAction"))
+            trend_value = safe_int(hedge_fund.get("trendValue"))
+            
+            # Calculate sentiment from position changes or direct sentiment value
+            if sentiment_val is not None:
+                if sentiment_val > 0:
+                    sentiment = SentimentType.BULLISH
+                elif sentiment_val < 0:
+                    sentiment = SentimentType.BEARISH
+                else:
+                    sentiment = SentimentType.NEUTRAL
+            elif increased + new_pos > decreased + closed:
                 sentiment = SentimentType.BULLISH
             elif decreased + closed > increased + new_pos:
                 sentiment = SentimentType.BEARISH
@@ -345,6 +395,9 @@ class ResponseBuilder:
                 "top_holders": hedge_fund.get("topHolders"),
                 "shares_change_qoq": safe_float(hedge_fund.get("sharesChangeQoQ")),
                 "ownership_change_qoq": safe_float(hedge_fund.get("ownershipChangeQoQ")),
+                "sentiment": sentiment_val,
+                "trend_action": trend_action,
+                "trend_value": trend_value,
                 "source": "tipranks",
                 "raw_data": raw_data
             }
@@ -355,14 +408,18 @@ class ResponseBuilder:
     def build_crowd_statistics(
         self,
         raw_data: Dict[str, Any],
-        ticker: str
+        ticker: str,
+        stats_type: str = 'all'
     ) -> Dict[str, Any]:
         """
         Build crowd statistics from TipRanks API response.
         
+        Uses correct field path: generalStats{statsType.capitalize()} (e.g., generalStatsAll)
+        
         Args:
             raw_data: Raw API response
             ticker: Stock ticker symbol
+            stats_type: Type of stats ('all', 'individual', 'institution')
             
         Returns:
             Dictionary with parsed crowd statistics fields
@@ -372,40 +429,67 @@ class ResponseBuilder:
             if isinstance(raw_data, list):
                 raw_data = raw_data[0] if raw_data else {}
             
-            crowd = raw_data.get("crowdWisdom", raw_data)
+            # Extract from generalStats{type} (correct path per notebook)
+            key = f'generalStats{stats_type.capitalize()}'
+            stats_data = raw_data.get(key, {}) or {}
             
-            bullish_pct = safe_float(crowd.get("bullishPercent"))
-            bearish_pct = safe_float(crowd.get("bearishPercent"))
+            # Fallback to crowdWisdom if generalStats doesn't exist
+            if not stats_data:
+                stats_data = raw_data.get("crowdWisdom", {}) or {}
             
-            # Determine sentiment
-            if bullish_pct and bearish_pct:
+            # Extract notebook-style fields
+            portfolio_holding = safe_int(stats_data.get("portfoliosHolding", 0)) or 0
+            amount_of_portfolios = safe_int(stats_data.get("amountOfPortfolios", 0)) or 0
+            percent_allocated = safe_float(stats_data.get("percentAllocated", 0.0)) or 0.0
+            percent_over_7d = safe_float(stats_data.get("percentOverLast7Days", 0.0)) or 0.0
+            percent_over_30d = safe_float(stats_data.get("percentOverLast30Days", 0.0)) or 0.0
+            score = safe_float(stats_data.get("score", 0.0)) or 0.0
+            
+            # Legacy fields for backwards compatibility
+            bullish_pct = safe_float(stats_data.get("bullishPercent"))
+            bearish_pct = safe_float(stats_data.get("bearishPercent"))
+            
+            # Determine sentiment based on score or bullish/bearish percentages
+            sentiment = None
+            if score:
+                if score > 5:
+                    sentiment = SentimentType.BULLISH
+                elif score < 5:
+                    sentiment = SentimentType.BEARISH
+                else:
+                    sentiment = SentimentType.NEUTRAL
+            elif bullish_pct and bearish_pct:
                 if bullish_pct > bearish_pct:
                     sentiment = SentimentType.BULLISH
                 elif bearish_pct > bullish_pct:
                     sentiment = SentimentType.BEARISH
                 else:
                     sentiment = SentimentType.NEUTRAL
-            else:
-                sentiment = None
             
             return {
                 "ticker": ticker,
                 "timestamp": get_utc_now(),
                 "crowd_sentiment": sentiment,
-                "sentiment_score": safe_float(crowd.get("sentimentScore")),
-                "mentions_count": safe_int(crowd.get("mentionsCount")) or 0,
-                "mentions_change": safe_float(crowd.get("mentionsChange")),
-                "impressions": safe_int(crowd.get("impressions")) or 0,
-                "engagement_rate": safe_float(crowd.get("engagementRate")),
+                "sentiment_score": safe_float(stats_data.get("sentimentScore")),
+                "mentions_count": safe_int(stats_data.get("mentionsCount")) or 0,
+                "mentions_change": safe_float(stats_data.get("mentionsChange")),
+                "impressions": safe_int(stats_data.get("impressions")) or 0,
+                "engagement_rate": safe_float(stats_data.get("engagementRate")),
                 "bullish_percent": bullish_pct,
                 "bearish_percent": bearish_pct,
-                "neutral_percent": safe_float(crowd.get("neutralPercent")),
-                "trending_score": safe_float(crowd.get("trendingScore")),
-                "rank_day": safe_int(crowd.get("dailyRank")),
-                "rank_week": safe_int(crowd.get("weeklyRank")),
-                "total_posts": safe_int(crowd.get("totalPosts")) or 0,
-                "unique_users": safe_int(crowd.get("uniqueUsers")) or 0,
-                "avg_sentiment_post": safe_float(crowd.get("avgSentiment")),
+                "neutral_percent": safe_float(stats_data.get("neutralPercent")),
+                "trending_score": safe_float(stats_data.get("trendingScore")),
+                "rank_day": safe_int(stats_data.get("dailyRank")),
+                "rank_week": safe_int(stats_data.get("weeklyRank")),
+                "total_posts": safe_int(stats_data.get("totalPosts")) or 0,
+                "unique_users": safe_int(stats_data.get("uniqueUsers")) or 0,
+                "avg_sentiment_post": safe_float(stats_data.get("avgSentiment")),
+                "portfolio_holding": portfolio_holding,
+                "amount_of_portfolios": amount_of_portfolios,
+                "percent_allocated": percent_allocated,
+                "percent_over_last_7d": percent_over_7d,
+                "percent_over_last_30d": percent_over_30d,
+                "score": score,
                 "source": "tipranks",
                 "raw_data": raw_data
             }
