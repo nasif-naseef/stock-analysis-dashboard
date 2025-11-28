@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from 'react-query';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 
@@ -13,6 +13,7 @@ import HedgeFund from './pages/HedgeFund';
 import Crowd from './pages/Crowd';
 import Technical from './pages/Technical';
 import Comparison from './pages/Comparison';
+import Admin from './pages/Admin';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -53,6 +54,7 @@ function App() {
               <Route path="/crowd" element={<Crowd />} />
               <Route path="/technical" element={<Technical />} />
               <Route path="/comparison" element={<Comparison />} />
+              <Route path="/admin" element={<Admin />} />
             </Routes>
           </Layout>
         </Router>
