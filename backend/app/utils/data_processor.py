@@ -90,686 +90,11 @@ def determine_rating(
 
 class ResponseBuilder:
     """
-    Builder class for parsing and transforming API responses into
-    structured data suitable for database storage.
+    Builder class for parsing API responses matching notebook structure.
+    
+    All methods match the exact JSON paths from the Jupyter notebook (Final.ipynb).
+    Legacy methods with different field names have been removed.
     """
-    
-    def build_analyst_ratings(
-        self,
-        raw_data: Dict[str, Any],
-        ticker: str
-    ) -> Dict[str, Any]:
-        """
-        Build analyst ratings data from TipRanks API response.
-        
-        Args:
-            raw_data: Raw API response
-            ticker: Stock ticker symbol
-            
-        Returns:
-            Dictionary with parsed analyst rating fields
-        """
-        try:
-            # Extract consensus data - handle both list and dict responses
-            if isinstance(raw_data, list):
-                raw_data = raw_data[0] if raw_data else {}
-            
-            # Fix: Use correct field names from TipRanks API
-            # Primary: analystConsensus, analystPriceTarget (TipRanks format)
-            # Fallback: consensus, priceTarget (legacy format)
-            consensus = raw_data.get("analystConsensus", {}) or raw_data.get("consensus", {}) or {}
-            price_target = raw_data.get("analystPriceTarget", {}) or raw_data.get("priceTarget", {}) or {}
-            prices = raw_data.get("prices", [])
-            
-            # Extract rating counts from analystConsensus first, then fall back to top-level
-            buy = safe_int(consensus.get("buy", 0)) or safe_int(raw_data.get("buy", 0)) or 0
-            hold = safe_int(consensus.get("hold", 0)) or safe_int(raw_data.get("hold", 0)) or 0
-            sell = safe_int(consensus.get("sell", 0)) or safe_int(raw_data.get("sell", 0)) or 0
-            
-            # Strong buy/sell might be separate (not in TipRanks analystConsensus, but check top-level)
-            strong_buy = safe_int(raw_data.get("strongBuy", 0)) or 0
-            strong_sell = safe_int(raw_data.get("strongSell", 0)) or 0
-            
-            # Total analysts - use numberOfAnalystRatings from consensus if available
-            total = safe_int(consensus.get("numberOfAnalystRatings", 0)) or (buy + hold + sell + strong_buy + strong_sell)
-            
-            # Price targets from analystPriceTarget
-            avg_target = safe_float(price_target.get("average"))
-            high_target = safe_float(price_target.get("high"))
-            low_target = safe_float(price_target.get("low"))
-            
-            # Get current price - try from prices array first, then fall back to currentPrice
-            current = None
-            if prices and len(prices) > 0:
-                # Get the most recent price (last item in prices array)
-                current = safe_float(prices[-1].get("p"))
-            if current is None:
-                current = safe_float(raw_data.get("currentPrice"))
-            
-            # Calculate upside potential
-            upside = None
-            if avg_target and current and current > 0:
-                upside = ((avg_target - current) / current) * 100
-            
-            # Consensus score - use consensusRating from analystConsensus if available
-            consensus_score = safe_float(consensus.get("consensusRating")) or safe_float(consensus.get("rating"))
-            
-            # Consensus text (e.g., "Moderate Buy")
-            consensus_text = consensus.get("consensus")
-            
-            return {
-                "ticker": ticker,
-                "timestamp": get_utc_now(),
-                "strong_buy_count": strong_buy,
-                "buy_count": buy,
-                "hold_count": hold,
-                "sell_count": sell,
-                "strong_sell_count": strong_sell,
-                "total_analysts": total,
-                "consensus_rating": determine_rating(
-                    buy + strong_buy,
-                    hold,
-                    sell + strong_sell,
-                    consensus_score
-                ),
-                "consensus_score": consensus_score,
-                "consensus_text": consensus_text,
-                "avg_price_target": avg_target,
-                "high_price_target": high_target,
-                "low_price_target": low_target,
-                "current_price": current,
-                "upside_potential": upside,
-                "source": "tipranks",
-                "raw_data": raw_data
-            }
-        except Exception as e:
-            logger.error(f"Error building analyst ratings: {e}")
-            raise
-    
-    def build_news_sentiment(
-        self,
-        raw_data: Dict[str, Any],
-        ticker: str
-    ) -> Dict[str, Any]:
-        """
-        Build news sentiment data from API response.
-        
-        Uses correct field paths from TipRanks API:
-        - newsSentimentScore.stock for stock sentiment
-        - newsSentimentScore.sector for sector sentiment
-        
-        Args:
-            raw_data: Raw API response
-            ticker: Stock ticker symbol
-            
-        Returns:
-            Dictionary with parsed news sentiment fields
-        """
-        try:
-            # Handle list response
-            if isinstance(raw_data, list):
-                raw_data = raw_data[0] if raw_data else {}
-            
-            # Extract from newsSentimentScore (correct path per notebook)
-            sentiment_data = raw_data.get("newsSentimentScore", {}) or {}
-            stock_data = sentiment_data.get("stock", {}) or {}
-            sector_data = sentiment_data.get("sector", {}) or {}
-            
-            # Stock sentiment scores
-            stock_bullish = safe_float(stock_data.get("bullishPercent"))
-            stock_bearish = safe_float(stock_data.get("bearishPercent"))
-            
-            # Sector sentiment scores
-            sector_bullish = safe_float(sector_data.get("bullishPercent"))
-            sector_bearish = safe_float(sector_data.get("bearishPercent"))
-            
-            # Calculate overall score (stock bullish - bearish as percentage)
-            score = None
-            if stock_bullish is not None and stock_bearish is not None:
-                score = stock_bullish - stock_bearish
-            
-            # Determine sentiment based on stock bullish/bearish
-            sentiment = None
-            if stock_bullish is not None and stock_bearish is not None:
-                if stock_bullish > stock_bearish:
-                    sentiment = determine_sentiment(50)  # BULLISH
-                elif stock_bearish > stock_bullish:
-                    sentiment = determine_sentiment(-50)  # BEARISH
-                else:
-                    sentiment = determine_sentiment(0)  # NEUTRAL
-            
-            # Legacy fields for backwards compatibility
-            buzz = safe_float(raw_data.get("buzz"))
-            news_score = safe_float(raw_data.get("newsScore"))
-            
-            return {
-                "ticker": ticker,
-                "timestamp": get_utc_now(),
-                "sentiment": sentiment,
-                "sentiment_score": score,
-                "buzz_score": buzz,
-                "news_score": news_score,
-                # Article counts not available in newsSentimentScore format
-                # Using 0 for backwards compatibility with database model defaults
-                "total_articles": 0,
-                "positive_articles": 0,
-                "negative_articles": 0,
-                "neutral_articles": 0,
-                "sector_sentiment": sector_bullish,
-                "sector_avg": sector_bearish,
-                "stock_bullish_score": stock_bullish,
-                "stock_bearish_score": stock_bearish,
-                "sector_bullish_score": sector_bullish,
-                "sector_bearish_score": sector_bearish,
-                "source": "tipranks",
-                "raw_data": raw_data
-            }
-        except Exception as e:
-            logger.error(f"Error building news sentiment: {e}")
-            raise
-    
-    def build_quantamental_scores(
-        self,
-        raw_data: Dict[str, Any],
-        ticker: str
-    ) -> Dict[str, Any]:
-        """
-        Build quantamental scores from Trading Central API response.
-        
-        Handles the actual Trading Central API response format:
-        [{'entity': {...}, 'growth': 27, 'growthLabel': {...}, 'income': None, 
-          'momentum': 90, 'quality': 40, 'quantamental': 34, 'valuation': 8, ...}]
-        
-        Args:
-            raw_data: Raw API response
-            ticker: Stock ticker symbol
-            
-        Returns:
-            Dictionary with parsed quantamental score fields
-        """
-        try:
-            # Handle list response - API returns array with single item
-            if isinstance(raw_data, list):
-                raw_data = raw_data[0] if raw_data else {}
-            
-            raw_data = raw_data or {}
-            
-            # Extract entity info if available
-            entity = raw_data.get("entity", {}) or {}
-            
-            # Extract scores directly from top-level fields (actual API format)
-            # These are the direct score values: quantamental, growth, valuation, income, quality, momentum
-            overall = safe_int(raw_data.get("quantamental"))
-            growth = safe_int(raw_data.get("growth"))
-            valuation_score = safe_int(raw_data.get("valuation"))
-            income = safe_int(raw_data.get("income"))
-            quality = safe_int(raw_data.get("quality"))
-            momentum = safe_int(raw_data.get("momentum"))
-            
-            # Extract labels if available
-            quantamental_label = raw_data.get("quantamentalLabel", {}) or {}
-            growth_label = raw_data.get("growthLabel", {}) or {}
-            valuation_label = raw_data.get("valuationLabel", {}) or {}
-            income_label = raw_data.get("incomeLabel", {}) or {}
-            quality_label = raw_data.get("qualityLabel", {}) or {}
-            momentum_label = raw_data.get("momentumLabel", {}) or {}
-            
-            return {
-                "ticker": ticker,
-                "timestamp": get_utc_now(),
-                # New notebook-style fields (direct scores)
-                "overall": overall,
-                "growth": growth,
-                "value": valuation_score,  # API uses 'valuation', we map to 'value'
-                "income": income,
-                "quality": quality,
-                "momentum": momentum,
-                # Legacy fields (map to float versions)
-                "overall_score": safe_float(overall),
-                "quality_score": safe_float(quality),
-                "value_score": safe_float(valuation_score),
-                "growth_score": safe_float(growth),
-                "momentum_score": safe_float(momentum),
-                # Label info
-                "quantamental_label": quantamental_label.get("name"),
-                "growth_label": growth_label.get("name"),
-                "valuation_label": valuation_label.get("name"),
-                "income_label": income_label.get("name"),
-                "quality_label": quality_label.get("name"),
-                "momentum_label": momentum_label.get("name"),
-                # Entity info
-                "symbol": entity.get("symbol"),
-                "name": entity.get("name"),
-                "exchange": entity.get("exchange"),
-                "sector": entity.get("sector"),
-                "isin": entity.get("isin"),
-                "instrument_id": entity.get("instrumentId"),
-                "entity_id": entity.get("entityId"),
-                # Legacy fields that may not be in this API format
-                "revenue_growth": None,
-                "earnings_growth": None,
-                "profit_margin": None,
-                "debt_to_equity": None,
-                "return_on_equity": None,
-                "pe_ratio": None,
-                "pb_ratio": None,
-                "ps_ratio": None,
-                "peg_ratio": None,
-                "ev_ebitda": None,
-                "sector_rank": None,
-                "industry_rank": None,
-                "overall_rank": None,
-                "source": "trading_central",
-                "raw_data": raw_data
-            }
-        except Exception as e:
-            logger.error(f"Error building quantamental scores: {e}")
-            raise
-    
-    def build_hedge_fund_data(
-        self,
-        raw_data: Dict[str, Any],
-        ticker: str
-    ) -> Dict[str, Any]:
-        """
-        Build hedge fund data from TipRanks/eToro API response.
-        
-        Uses correct field path: overview.hedgeFundData
-        
-        Args:
-            raw_data: Raw API response
-            ticker: Stock ticker symbol
-            
-        Returns:
-            Dictionary with parsed hedge fund data fields
-        """
-        try:
-            # Handle list response
-            if isinstance(raw_data, list):
-                raw_data = raw_data[0] if raw_data else {}
-            
-            # Extract from overview.hedgeFundData (correct path per notebook)
-            overview = raw_data.get("overview", {}) or {}
-            hedge_fund = overview.get("hedgeFundData", {}) or {}
-            
-            # Fallback to direct hedgeFundData if overview path doesn't exist
-            if not hedge_fund:
-                hedge_fund = raw_data.get("hedgeFundData", {}) or {}
-            
-            institutional = raw_data.get("institutional", {}) or {}
-            
-            # Position changes
-            new_pos = safe_int(hedge_fund.get("newPositions", 0)) or 0
-            increased = safe_int(hedge_fund.get("increasedPositions", 0)) or 0
-            decreased = safe_int(hedge_fund.get("decreasedPositions", 0)) or 0
-            closed = safe_int(hedge_fund.get("soldOutPositions", 0)) or 0
-            
-            # Extract sentiment/trend fields from notebook format
-            sentiment_val = safe_float(hedge_fund.get("sentiment"))
-            trend_action = safe_int(hedge_fund.get("trendAction"))
-            trend_value = safe_int(hedge_fund.get("trendValue"))
-            
-            # Calculate sentiment from position changes or direct sentiment value
-            if sentiment_val is not None:
-                if sentiment_val > 0:
-                    sentiment = SentimentType.BULLISH
-                elif sentiment_val < 0:
-                    sentiment = SentimentType.BEARISH
-                else:
-                    sentiment = SentimentType.NEUTRAL
-            elif increased + new_pos > decreased + closed:
-                sentiment = SentimentType.BULLISH
-            elif decreased + closed > increased + new_pos:
-                sentiment = SentimentType.BEARISH
-            else:
-                sentiment = SentimentType.NEUTRAL
-            
-            return {
-                "ticker": ticker,
-                "timestamp": get_utc_now(),
-                "institutional_ownership_pct": safe_float(institutional.get("ownershipPercent")),
-                "hedge_fund_count": safe_int(hedge_fund.get("count")) or 0,
-                "total_shares_held": safe_float(hedge_fund.get("totalSharesHeld")),
-                "market_value_held": safe_float(hedge_fund.get("marketValue")),
-                "new_positions": new_pos,
-                "increased_positions": increased,
-                "decreased_positions": decreased,
-                "closed_positions": closed,
-                "hedge_fund_sentiment": sentiment,
-                "smart_money_score": safe_float(hedge_fund.get("smartScore")),
-                "top_holders": hedge_fund.get("topHolders"),
-                "shares_change_qoq": safe_float(hedge_fund.get("sharesChangeQoQ")),
-                "ownership_change_qoq": safe_float(hedge_fund.get("ownershipChangeQoQ")),
-                "sentiment": sentiment_val,
-                "trend_action": trend_action,
-                "trend_value": trend_value,
-                "source": "tipranks",
-                "raw_data": raw_data
-            }
-        except Exception as e:
-            logger.error(f"Error building hedge fund data: {e}")
-            raise
-    
-    def build_crowd_statistics(
-        self,
-        raw_data: Dict[str, Any],
-        ticker: str,
-        stats_type: str = 'all'
-    ) -> Dict[str, Any]:
-        """
-        Build crowd statistics from TipRanks API response.
-        
-        Uses correct field path: generalStats{statsType.capitalize()} (e.g., generalStatsAll)
-        
-        Args:
-            raw_data: Raw API response
-            ticker: Stock ticker symbol
-            stats_type: Type of stats ('all', 'individual', 'institution')
-            
-        Returns:
-            Dictionary with parsed crowd statistics fields
-        """
-        try:
-            # Handle list response
-            if isinstance(raw_data, list):
-                raw_data = raw_data[0] if raw_data else {}
-            
-            # Extract from generalStats{type} (correct path per notebook)
-            key = f'generalStats{stats_type.capitalize()}'
-            stats_data = raw_data.get(key, {}) or {}
-            
-            # Fallback to crowdWisdom if generalStats doesn't exist
-            if not stats_data:
-                stats_data = raw_data.get("crowdWisdom", {}) or {}
-            
-            # Extract notebook-style fields
-            portfolio_holding = safe_int(stats_data.get("portfoliosHolding", 0)) or 0
-            amount_of_portfolios = safe_int(stats_data.get("amountOfPortfolios", 0)) or 0
-            percent_allocated = safe_float(stats_data.get("percentAllocated", 0.0)) or 0.0
-            percent_over_7d = safe_float(stats_data.get("percentOverLast7Days", 0.0)) or 0.0
-            percent_over_30d = safe_float(stats_data.get("percentOverLast30Days", 0.0)) or 0.0
-            score = safe_float(stats_data.get("score", 0.0)) or 0.0
-            
-            # Legacy fields for backwards compatibility
-            bullish_pct = safe_float(stats_data.get("bullishPercent"))
-            bearish_pct = safe_float(stats_data.get("bearishPercent"))
-            
-            # Determine sentiment based on score or bullish/bearish percentages
-            sentiment = None
-            if score:
-                if score > 5:
-                    sentiment = SentimentType.BULLISH
-                elif score < 5:
-                    sentiment = SentimentType.BEARISH
-                else:
-                    sentiment = SentimentType.NEUTRAL
-            elif bullish_pct and bearish_pct:
-                if bullish_pct > bearish_pct:
-                    sentiment = SentimentType.BULLISH
-                elif bearish_pct > bullish_pct:
-                    sentiment = SentimentType.BEARISH
-                else:
-                    sentiment = SentimentType.NEUTRAL
-            
-            return {
-                "ticker": ticker,
-                "timestamp": get_utc_now(),
-                "crowd_sentiment": sentiment,
-                "sentiment_score": safe_float(stats_data.get("sentimentScore")),
-                "mentions_count": safe_int(stats_data.get("mentionsCount")) or 0,
-                "mentions_change": safe_float(stats_data.get("mentionsChange")),
-                "impressions": safe_int(stats_data.get("impressions")) or 0,
-                "engagement_rate": safe_float(stats_data.get("engagementRate")),
-                "bullish_percent": bullish_pct,
-                "bearish_percent": bearish_pct,
-                "neutral_percent": safe_float(stats_data.get("neutralPercent")),
-                "trending_score": safe_float(stats_data.get("trendingScore")),
-                "rank_day": safe_int(stats_data.get("dailyRank")),
-                "rank_week": safe_int(stats_data.get("weeklyRank")),
-                "total_posts": safe_int(stats_data.get("totalPosts")) or 0,
-                "unique_users": safe_int(stats_data.get("uniqueUsers")) or 0,
-                "avg_sentiment_post": safe_float(stats_data.get("avgSentiment")),
-                "portfolio_holding": portfolio_holding,
-                "amount_of_portfolios": amount_of_portfolios,
-                "percent_allocated": percent_allocated,
-                "percent_over_last_7d": percent_over_7d,
-                "percent_over_last_30d": percent_over_30d,
-                "score": score,
-                "source": "tipranks",
-                "raw_data": raw_data
-            }
-        except Exception as e:
-            logger.error(f"Error building crowd statistics: {e}")
-            raise
-    
-    def build_blogger_sentiment(
-        self,
-        raw_data: Dict[str, Any],
-        ticker: str
-    ) -> Dict[str, Any]:
-        """
-        Build blogger sentiment from TipRanks API response.
-        
-        Args:
-            raw_data: Raw API response
-            ticker: Stock ticker symbol
-            
-        Returns:
-            Dictionary with parsed blogger sentiment fields
-        """
-        try:
-            # Handle list response
-            if isinstance(raw_data, list):
-                raw_data = raw_data[0] if raw_data else {}
-            
-            blogger = raw_data.get("bloggerSentiment", raw_data)
-            
-            bullish = safe_int(blogger.get("bullish", 0)) or 0
-            bearish = safe_int(blogger.get("bearish", 0)) or 0
-            neutral_count = safe_int(blogger.get("neutral", 0)) or 0
-            total = bullish + bearish + neutral_count
-            
-            # Calculate percentages
-            bullish_pct = (bullish / total * 100) if total > 0 else None
-            bearish_pct = (bearish / total * 100) if total > 0 else None
-            
-            # Determine sentiment
-            if bullish > bearish:
-                sentiment = SentimentType.BULLISH
-            elif bearish > bullish:
-                sentiment = SentimentType.BEARISH
-            else:
-                sentiment = SentimentType.NEUTRAL
-            
-            return {
-                "ticker": ticker,
-                "timestamp": get_utc_now(),
-                "blogger_sentiment": sentiment if total > 0 else None,
-                "sentiment_score": safe_float(blogger.get("sentimentScore")),
-                "total_articles": total,
-                "bullish_articles": bullish,
-                "bearish_articles": bearish,
-                "neutral_articles": neutral_count,
-                "bullish_percent": bullish_pct,
-                "bearish_percent": bearish_pct,
-                "avg_blogger_accuracy": safe_float(blogger.get("avgAccuracy")),
-                "top_blogger_opinion": blogger.get("topBloggerOpinion"),
-                "sentiment_change_1d": safe_float(blogger.get("change1d")),
-                "sentiment_change_1w": safe_float(blogger.get("change1w")),
-                "sentiment_change_1m": safe_float(blogger.get("change1m")),
-                "source": "tipranks",
-                "raw_data": raw_data
-            }
-        except Exception as e:
-            logger.error(f"Error building blogger sentiment: {e}")
-            raise
-    
-    def build_technical_indicators(
-        self,
-        raw_data: Dict[str, Any],
-        ticker: str,
-        timeframe: TimeframeType = TimeframeType.ONE_DAY
-    ) -> Dict[str, Any]:
-        """
-        Build technical indicators from Trading Central API response.
-        
-        Args:
-            raw_data: Raw API response
-            ticker: Stock ticker symbol
-            timeframe: Indicator timeframe
-            
-        Returns:
-            Dictionary with parsed technical indicator fields
-        """
-        try:
-            # Handle list response
-            if isinstance(raw_data, list):
-                raw_data = raw_data[0] if raw_data else {}
-            
-            price = raw_data.get("price", {})
-            indicators = raw_data.get("indicators", {})
-            signals = raw_data.get("signals", {})
-            levels = raw_data.get("levels", {})
-            
-            # Determine overall signal
-            oscillator_sig = signals.get("oscillator")
-            ma_sig = signals.get("movingAverage")
-            overall_sig = signals.get("overall")
-            
-            return {
-                "ticker": ticker,
-                "timestamp": get_utc_now(),
-                "timeframe": timeframe,
-                "open_price": safe_float(price.get("open")),
-                "high_price": safe_float(price.get("high")),
-                "low_price": safe_float(price.get("low")),
-                "close_price": safe_float(price.get("close")),
-                "volume": safe_float(price.get("volume")),
-                "sma_20": safe_float(indicators.get("sma20")),
-                "sma_50": safe_float(indicators.get("sma50")),
-                "sma_200": safe_float(indicators.get("sma200")),
-                "ema_12": safe_float(indicators.get("ema12")),
-                "ema_26": safe_float(indicators.get("ema26")),
-                "rsi_14": safe_float(indicators.get("rsi14")),
-                "stoch_k": safe_float(indicators.get("stochK")),
-                "stoch_d": safe_float(indicators.get("stochD")),
-                "cci": safe_float(indicators.get("cci")),
-                "williams_r": safe_float(indicators.get("williamsR")),
-                "macd": safe_float(indicators.get("macd")),
-                "macd_signal": safe_float(indicators.get("macdSignal")),
-                "macd_histogram": safe_float(indicators.get("macdHistogram")),
-                "adx": safe_float(indicators.get("adx")),
-                "plus_di": safe_float(indicators.get("plusDi")),
-                "minus_di": safe_float(indicators.get("minusDi")),
-                "atr": safe_float(indicators.get("atr")),
-                "bollinger_upper": safe_float(indicators.get("bollingerUpper")),
-                "bollinger_middle": safe_float(indicators.get("bollingerMiddle")),
-                "bollinger_lower": safe_float(indicators.get("bollingerLower")),
-                "support_1": safe_float(levels.get("support1")),
-                "support_2": safe_float(levels.get("support2")),
-                "resistance_1": safe_float(levels.get("resistance1")),
-                "resistance_2": safe_float(levels.get("resistance2")),
-                "pivot_point": safe_float(levels.get("pivot")),
-                "oscillator_signal": determine_sentiment(
-                    safe_float(oscillator_sig)
-                ) if oscillator_sig else None,
-                "moving_avg_signal": determine_sentiment(
-                    safe_float(ma_sig)
-                ) if ma_sig else None,
-                "overall_signal": determine_sentiment(
-                    safe_float(overall_sig)
-                ) if overall_sig else None,
-                "source": "trading_central",
-                "raw_data": raw_data
-            }
-        except Exception as e:
-            logger.error(f"Error building technical indicators: {e}")
-            raise
-    
-    def build_target_prices(
-        self,
-        raw_data: Dict[str, Any],
-        ticker: str
-    ) -> List[Dict[str, Any]]:
-        """
-        Build target price data from Trading Central API response.
-        
-        May return multiple records if there are multiple analysts.
-        
-        Args:
-            raw_data: Raw API response
-            ticker: Stock ticker symbol
-            
-        Returns:
-            List of dictionaries with parsed target price fields
-        """
-        try:
-            # Handle both single and list responses
-            if isinstance(raw_data, dict):
-                targets = raw_data.get("targets", [raw_data])
-            elif isinstance(raw_data, list):
-                targets = raw_data
-            else:
-                targets = []
-            
-            results = []
-            for target in targets:
-                results.append({
-                    "ticker": ticker,
-                    "timestamp": get_utc_now(),
-                    "analyst_name": target.get("analystName"),
-                    "analyst_firm": target.get("firm"),
-                    "target_price": safe_float(target.get("targetPrice")),
-                    "previous_target": safe_float(target.get("previousTarget")),
-                    "target_change": safe_float(target.get("change")),
-                    "target_change_pct": safe_float(target.get("changePercent")),
-                    "rating": self._map_rating(target.get("rating")),
-                    "previous_rating": self._map_rating(target.get("previousRating")),
-                    "rating_changed": target.get("ratingChanged", False),
-                    "current_price_at_rating": safe_float(target.get("priceAtRating")),
-                    "upside_to_target": safe_float(target.get("upside")),
-                    "analyst_accuracy_score": safe_float(target.get("accuracy")),
-                    "rating_date": self._parse_date(target.get("date")),
-                    "source": "trading_central",
-                    "raw_data": target
-                })
-            
-            return results
-        except Exception as e:
-            logger.error(f"Error building target prices: {e}")
-            raise
-    
-    def _map_rating(self, rating: Optional[str]) -> Optional[RatingType]:
-        """Map string rating to RatingType enum"""
-        if not rating:
-            return None
-        
-        rating_lower = rating.lower()
-        mapping = {
-            "strong buy": RatingType.STRONG_BUY,
-            "buy": RatingType.BUY,
-            "hold": RatingType.HOLD,
-            "neutral": RatingType.HOLD,
-            "sell": RatingType.SELL,
-            "strong sell": RatingType.STRONG_SELL,
-            "underperform": RatingType.SELL,
-            "outperform": RatingType.BUY,
-        }
-        return mapping.get(rating_lower)
-    
-    def _parse_date(self, date_str: Optional[str]) -> Optional[datetime]:
-        """Parse date string to datetime"""
-        if not date_str:
-            return None
-        try:
-            return datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-        except (ValueError, AttributeError):
-            return None
-
-    # ============================================
-    # Notebook API Response Builder Methods
-    # These methods match the exact JSON paths from the Jupyter notebook (Final.ipynb)
-    # ============================================
 
     def build_analyst_consensus(
         self,
@@ -811,7 +136,7 @@ class ResponseBuilder:
             logger.error(f"Error building analyst consensus: {e}")
             raise
 
-    def build_notebook_news_sentiment(
+    def build_news_sentiment(
         self,
         raw_data: Dict[str, Any],
         ticker: str
@@ -844,10 +169,10 @@ class ResponseBuilder:
                 "sector_bearish_score": safe_float(sector_data.get('bearishPercent')),
             }
         except Exception as e:
-            logger.error(f"Error building notebook news sentiment: {e}")
+            logger.error(f"Error building news sentiment: {e}")
             raise
 
-    def build_notebook_hedge_fund(
+    def build_hedge_fund(
         self,
         raw_data: Dict[str, Any],
         ticker: str
@@ -877,7 +202,7 @@ class ResponseBuilder:
                 "trend_value": safe_int(hedge_fund_data.get('trendValue')),
             }
         except Exception as e:
-            logger.error(f"Error building notebook hedge fund: {e}")
+            logger.error(f"Error building hedge fund: {e}")
             raise
 
     def build_insider_score(
@@ -913,7 +238,7 @@ class ResponseBuilder:
             logger.error(f"Error building insider score: {e}")
             raise
 
-    def build_notebook_crowd_stats(
+    def build_crowd_stats(
         self,
         raw_data: Dict[str, Any],
         ticker: str,
@@ -953,10 +278,10 @@ class ResponseBuilder:
                 "frequency": safe_float(stats_data.get('frequency', 0.0)) or 0.0,
             }
         except Exception as e:
-            logger.error(f"Error building notebook crowd stats: {e}")
+            logger.error(f"Error building crowd stats: {e}")
             raise
 
-    def build_notebook_blogger_sentiment(
+    def build_blogger_sentiment(
         self,
         raw_data: Dict[str, Any],
         ticker: str
@@ -991,10 +316,10 @@ class ResponseBuilder:
                 "avg": safe_float(blogger_data.get('avg', 0.0)) or 0.0,
             }
         except Exception as e:
-            logger.error(f"Error building notebook blogger sentiment: {e}")
+            logger.error(f"Error building blogger sentiment: {e}")
             raise
 
-    def build_notebook_quantamental(
+    def build_quantamental(
         self,
         raw_data: Dict[str, Any],
         ticker: str
@@ -1024,7 +349,7 @@ class ResponseBuilder:
                 "momentum": safe_int(raw_data.get('momentum')),
             }
         except Exception as e:
-            logger.error(f"Error building notebook quantamental: {e}")
+            logger.error(f"Error building quantamental: {e}")
             raise
 
     def build_analyst_consensus_history(
@@ -1052,7 +377,7 @@ class ResponseBuilder:
             logger.error(f"Error building analyst consensus history: {e}")
             raise
 
-    def build_notebook_target_price(
+    def build_target_price(
         self,
         raw_data: Dict[str, Any],
         ticker: str
@@ -1080,7 +405,7 @@ class ResponseBuilder:
                 "last_updated": raw_data.get('lastUpdated'),
             }
         except Exception as e:
-            logger.error(f"Error building notebook target price: {e}")
+            logger.error(f"Error building target price: {e}")
             raise
 
     def build_article_distribution(

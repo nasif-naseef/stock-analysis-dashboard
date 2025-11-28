@@ -125,28 +125,28 @@ class DataCollectionService:
                 )
                 return {"status": "error", "message": "No data received", "records": 0}
             
-            # Parse response
-            parsed_data = self.response_builder.build_analyst_ratings(raw_data, ticker)
+            # Parse response using notebook-style method
+            parsed_data = self.response_builder.build_analyst_consensus(raw_data, ticker)
             
-            # Create database record
+            # Create database record - map notebook-style fields to legacy database fields
             db_record = AnalystRating(
                 ticker=parsed_data["ticker"],
-                timestamp=parsed_data["timestamp"],
-                strong_buy_count=parsed_data["strong_buy_count"],
-                buy_count=parsed_data["buy_count"],
-                hold_count=parsed_data["hold_count"],
-                sell_count=parsed_data["sell_count"],
-                strong_sell_count=parsed_data["strong_sell_count"],
-                total_analysts=parsed_data["total_analysts"],
-                consensus_rating=parsed_data["consensus_rating"],
-                consensus_score=parsed_data["consensus_score"],
-                avg_price_target=parsed_data["avg_price_target"],
-                high_price_target=parsed_data["high_price_target"],
-                low_price_target=parsed_data["low_price_target"],
-                current_price=parsed_data["current_price"],
-                upside_potential=parsed_data["upside_potential"],
-                source=parsed_data["source"],
-                raw_data=parsed_data["raw_data"]
+                timestamp=get_utc_now(),
+                strong_buy_count=0,  # Not available in notebook-style response
+                buy_count=parsed_data.get("buy_ratings") or 0,
+                hold_count=parsed_data.get("hold_ratings") or 0,
+                sell_count=parsed_data.get("sell_ratings") or 0,
+                strong_sell_count=0,  # Not available in notebook-style response
+                total_analysts=parsed_data.get("total_ratings") or 0,
+                consensus_rating=None,  # Would need determine_rating() call
+                consensus_score=parsed_data.get("consensus_rating_score"),
+                avg_price_target=parsed_data.get("price_target_average"),
+                high_price_target=parsed_data.get("price_target_high"),
+                low_price_target=parsed_data.get("price_target_low"),
+                current_price=None,  # Not available in notebook-style response
+                upside_potential=None,  # Not available in notebook-style response
+                source="tipranks",
+                raw_data=raw_data
             )
             
             db.add(db_record)
@@ -200,25 +200,32 @@ class DataCollectionService:
                 )
                 return {"status": "error", "message": "No data received", "records": 0}
             
-            # Parse response
+            # Parse response using notebook-style method
             parsed_data = self.response_builder.build_news_sentiment(raw_data, ticker)
             
-            # Create database record
+            # Create database record - map notebook-style fields to legacy database fields
+            # Calculate sentiment score from bullish/bearish
+            stock_bullish = parsed_data.get("stock_bullish_score")
+            stock_bearish = parsed_data.get("stock_bearish_score")
+            sentiment_score = None
+            if stock_bullish is not None and stock_bearish is not None:
+                sentiment_score = stock_bullish - stock_bearish
+            
             db_record = NewsSentiment(
                 ticker=parsed_data["ticker"],
-                timestamp=parsed_data["timestamp"],
-                sentiment=parsed_data["sentiment"],
-                sentiment_score=parsed_data["sentiment_score"],
-                buzz_score=parsed_data["buzz_score"],
-                news_score=parsed_data["news_score"],
-                total_articles=parsed_data["total_articles"],
-                positive_articles=parsed_data["positive_articles"],
-                negative_articles=parsed_data["negative_articles"],
-                neutral_articles=parsed_data["neutral_articles"],
-                sector_sentiment=parsed_data["sector_sentiment"],
-                sector_avg=parsed_data["sector_avg"],
-                source=parsed_data["source"],
-                raw_data=parsed_data["raw_data"]
+                timestamp=get_utc_now(),
+                sentiment=None,  # Would need determine_sentiment() call
+                sentiment_score=sentiment_score,
+                buzz_score=None,  # Not available in notebook-style response
+                news_score=None,  # Not available in notebook-style response
+                total_articles=0,  # Not available in notebook-style response
+                positive_articles=0,  # Not available in notebook-style response
+                negative_articles=0,  # Not available in notebook-style response
+                neutral_articles=0,  # Not available in notebook-style response
+                sector_sentiment=parsed_data.get("sector_bullish_score"),
+                sector_avg=parsed_data.get("sector_bearish_score"),
+                source="tipranks",
+                raw_data=raw_data
             )
             
             db.add(db_record)
@@ -285,33 +292,33 @@ class DataCollectionService:
                 )
                 return {"status": "error", "message": "No data received", "records": 0}
             
-            # Parse response
-            parsed_data = self.response_builder.build_quantamental_scores(raw_data, ticker)
+            # Parse response using notebook-style method
+            parsed_data = self.response_builder.build_quantamental(raw_data, ticker)
             
-            # Create database record
+            # Create database record - map notebook-style fields to legacy database fields
             db_record = QuantamentalScore(
                 ticker=parsed_data["ticker"],
-                timestamp=parsed_data["timestamp"],
-                overall_score=parsed_data["overall_score"],
-                quality_score=parsed_data["quality_score"],
-                value_score=parsed_data["value_score"],
-                growth_score=parsed_data["growth_score"],
-                momentum_score=parsed_data["momentum_score"],
-                revenue_growth=parsed_data["revenue_growth"],
-                earnings_growth=parsed_data["earnings_growth"],
-                profit_margin=parsed_data["profit_margin"],
-                debt_to_equity=parsed_data["debt_to_equity"],
-                return_on_equity=parsed_data["return_on_equity"],
-                pe_ratio=parsed_data["pe_ratio"],
-                pb_ratio=parsed_data["pb_ratio"],
-                ps_ratio=parsed_data["ps_ratio"],
-                peg_ratio=parsed_data["peg_ratio"],
-                ev_ebitda=parsed_data["ev_ebitda"],
-                sector_rank=parsed_data["sector_rank"],
-                industry_rank=parsed_data["industry_rank"],
-                overall_rank=parsed_data["overall_rank"],
-                source=parsed_data["source"],
-                raw_data=parsed_data["raw_data"]
+                timestamp=get_utc_now(),
+                overall_score=float(parsed_data.get("overall") or 0) if parsed_data.get("overall") is not None else None,
+                quality_score=float(parsed_data.get("quality") or 0) if parsed_data.get("quality") is not None else None,
+                value_score=float(parsed_data.get("value") or 0) if parsed_data.get("value") is not None else None,
+                growth_score=float(parsed_data.get("growth") or 0) if parsed_data.get("growth") is not None else None,
+                momentum_score=float(parsed_data.get("momentum") or 0) if parsed_data.get("momentum") is not None else None,
+                revenue_growth=None,  # Not available in notebook-style response
+                earnings_growth=None,  # Not available in notebook-style response
+                profit_margin=None,  # Not available in notebook-style response
+                debt_to_equity=None,  # Not available in notebook-style response
+                return_on_equity=None,  # Not available in notebook-style response
+                pe_ratio=None,  # Not available in notebook-style response
+                pb_ratio=None,  # Not available in notebook-style response
+                ps_ratio=None,  # Not available in notebook-style response
+                peg_ratio=None,  # Not available in notebook-style response
+                ev_ebitda=None,  # Not available in notebook-style response
+                sector_rank=None,  # Not available in notebook-style response
+                industry_rank=None,  # Not available in notebook-style response
+                overall_rank=None,  # Not available in notebook-style response
+                source="trading_central",
+                raw_data=raw_data
             )
             
             db.add(db_record)

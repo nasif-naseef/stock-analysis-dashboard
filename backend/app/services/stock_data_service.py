@@ -121,7 +121,7 @@ class StockDataService:
             try:
                 raw_data = self.api_client.fetch_tipranks_analyst_ratings(t)
                 if raw_data:
-                    results[t] = self.response_builder.build_analyst_ratings(raw_data, t)
+                    results[t] = self.response_builder.build_analyst_consensus(raw_data, t)
                 else:
                     results[t] = {"ticker": t, "error": "No data received"}
             except Exception as e:
@@ -151,7 +151,7 @@ class StockDataService:
             try:
                 raw_data = self.api_client.fetch_tipranks_news(t)
                 if raw_data:
-                    results[t] = self.response_builder.build_notebook_news_sentiment(raw_data, t)
+                    results[t] = self.response_builder.build_news_sentiment(raw_data, t)
                 else:
                     results[t] = {"ticker": t, "error": "No data received"}
             except Exception as e:
@@ -208,7 +208,7 @@ class StockDataService:
             try:
                 raw_data = self.api_client.fetch_tipranks_etoro_data(t)
                 if raw_data:
-                    results[t] = self.response_builder.build_notebook_hedge_fund(raw_data, t)
+                    results[t] = self.response_builder.build_hedge_fund(raw_data, t)
                 else:
                     results[t] = {"ticker": t, "error": "No data received"}
             except Exception as e:
@@ -260,7 +260,7 @@ class StockDataService:
             try:
                 raw_data = self.api_client.fetch_tipranks_etoro_data(t)
                 if raw_data:
-                    results[t] = self.response_builder.build_hedge_fund_data(raw_data, t)
+                    results[t] = self.response_builder.build_hedge_fund(raw_data, t)
                 else:
                     results[t] = {"ticker": t, "error": "No data received"}
             except Exception as e:
@@ -371,7 +371,7 @@ class StockDataService:
             try:
                 raw_data = self.api_client.fetch_tipranks_crowd_data(t)
                 if raw_data:
-                    results[t] = self.response_builder.build_notebook_crowd_stats(raw_data, t, stats_type)
+                    results[t] = self.response_builder.build_crowd_stats(raw_data, t, stats_type)
                 else:
                     results[t] = {"ticker": t, "error": "No data received"}
             except Exception as e:
@@ -430,7 +430,7 @@ class StockDataService:
             try:
                 raw_data = self.api_client.fetch_tipranks_bloggers(t)
                 if raw_data:
-                    results[t] = self.response_builder.build_notebook_blogger_sentiment(raw_data, t)
+                    results[t] = self.response_builder.build_blogger_sentiment(raw_data, t)
                 else:
                     results[t] = {"ticker": t, "error": "No data received"}
             except Exception as e:
@@ -522,7 +522,7 @@ class StockDataService:
                 
                 raw_data = self.api_client.fetch_tc_quantamental(tc_id)
                 if raw_data:
-                    results[t] = self.response_builder.build_notebook_quantamental(raw_data, t)
+                    results[t] = self.response_builder.build_quantamental(raw_data, t)
                 else:
                     results[t] = {"ticker": t, "error": "No data received"}
             except Exception as e:
@@ -890,7 +890,7 @@ class StockDataService:
                 
                 raw_data = self.api_client.fetch_tc_target_prices(tc_id)
                 if raw_data:
-                    results[t] = self.response_builder.build_notebook_target_price(raw_data, t)
+                    results[t] = self.response_builder.build_target_price(raw_data, t)
                 else:
                     results[t] = {"ticker": t, "error": "No data received"}
             except Exception as e:
