@@ -202,18 +202,6 @@ class NewsSentiment(Base):
     sector_bullish_score = Column(Float, nullable=True)
     sector_bearish_score = Column(Float, nullable=True)
     
-    # Legacy fields for backwards compatibility
-    sentiment = Column(SQLEnum(SentimentType), nullable=True)
-    sentiment_score = Column(Float, nullable=True)  # -1 to 1 scale
-    buzz_score = Column(Float, nullable=True)
-    news_score = Column(Float, nullable=True)
-    total_articles = Column(Integer, default=0)
-    positive_articles = Column(Integer, default=0)
-    negative_articles = Column(Integer, default=0)
-    neutral_articles = Column(Integer, default=0)
-    sector_sentiment = Column(Float, nullable=True)
-    sector_avg = Column(Float, nullable=True)
-    
     # Source metadata
     source = Column(String(100), nullable=True)
     raw_data = Column(JSON, nullable=True)
@@ -228,7 +216,6 @@ class QuantamentalScore(Base):
     Model for storing quantamental analysis scores matching notebook API structure.
     
     Fields: ticker, overall, growth, value, income, quality, momentum
-    Also keeps legacy fundamental/valuation metrics for backwards compatibility.
     """
     __tablename__ = "quantamental_scores"
     
@@ -244,32 +231,6 @@ class QuantamentalScore(Base):
     quality = Column(Integer, nullable=True)
     momentum = Column(Integer, nullable=True)
     
-    # Legacy overall scores (mapped from notebook fields)
-    overall_score = Column(Float, nullable=True)
-    quality_score = Column(Float, nullable=True)
-    value_score = Column(Float, nullable=True)
-    growth_score = Column(Float, nullable=True)
-    momentum_score = Column(Float, nullable=True)
-    
-    # Fundamental metrics
-    revenue_growth = Column(Float, nullable=True)
-    earnings_growth = Column(Float, nullable=True)
-    profit_margin = Column(Float, nullable=True)
-    debt_to_equity = Column(Float, nullable=True)
-    return_on_equity = Column(Float, nullable=True)
-    
-    # Valuation metrics
-    pe_ratio = Column(Float, nullable=True)
-    pb_ratio = Column(Float, nullable=True)
-    ps_ratio = Column(Float, nullable=True)
-    peg_ratio = Column(Float, nullable=True)
-    ev_ebitda = Column(Float, nullable=True)
-    
-    # Ranking info
-    sector_rank = Column(Integer, nullable=True)
-    industry_rank = Column(Integer, nullable=True)
-    overall_rank = Column(Integer, nullable=True)
-    
     # Source metadata
     source = Column(String(100), nullable=True)
     raw_data = Column(JSON, nullable=True)
@@ -284,7 +245,6 @@ class HedgeFundData(Base):
     Model for storing hedge fund activity and holdings data matching notebook API structure.
     
     Fields: ticker, sentiment, trend_action, trend_value
-    Also keeps legacy institutional ownership fields for backwards compatibility.
     """
     __tablename__ = "hedge_fund_data"
     
@@ -296,29 +256,6 @@ class HedgeFundData(Base):
     sentiment = Column(Float, nullable=True)
     trend_action = Column(Integer, nullable=True)
     trend_value = Column(Integer, nullable=True)
-    
-    # Legacy ownership metrics
-    institutional_ownership_pct = Column(Float, nullable=True)
-    hedge_fund_count = Column(Integer, default=0)
-    total_shares_held = Column(Float, nullable=True)
-    market_value_held = Column(Float, nullable=True)
-    
-    # Position changes
-    new_positions = Column(Integer, default=0)
-    increased_positions = Column(Integer, default=0)
-    decreased_positions = Column(Integer, default=0)
-    closed_positions = Column(Integer, default=0)
-    
-    # Legacy sentiment indicators
-    hedge_fund_sentiment = Column(SQLEnum(SentimentType), nullable=True)
-    smart_money_score = Column(Float, nullable=True)
-    
-    # Top holders info (JSON for flexibility)
-    top_holders = Column(JSON, nullable=True)
-    
-    # Quarterly changes
-    shares_change_qoq = Column(Float, nullable=True)
-    ownership_change_qoq = Column(Float, nullable=True)
     
     # Source metadata
     source = Column(String(100), nullable=True)
@@ -458,21 +395,6 @@ class BloggerSentiment(Base):
     score = Column(Float, default=0.0)
     avg = Column(Float, default=0.0)
     
-    # Legacy fields for backwards compatibility
-    blogger_sentiment = Column(SQLEnum(SentimentType), nullable=True)
-    sentiment_score = Column(Float, nullable=True)
-    total_articles = Column(Integer, default=0)
-    bullish_articles = Column(Integer, default=0)
-    bearish_articles = Column(Integer, default=0)
-    neutral_articles = Column(Integer, default=0)
-    bullish_percent = Column(Float, nullable=True)
-    bearish_percent = Column(Float, nullable=True)
-    avg_blogger_accuracy = Column(Float, nullable=True)
-    top_blogger_opinion = Column(String(50), nullable=True)
-    sentiment_change_1d = Column(Float, nullable=True)
-    sentiment_change_1w = Column(Float, nullable=True)
-    sentiment_change_1m = Column(Float, nullable=True)
-    
     # Source metadata
     source = Column(String(100), nullable=True)
     raw_data = Column(JSON, nullable=True)
@@ -557,7 +479,6 @@ class TargetPrice(Base):
     Model for storing target price data matching notebook API structure.
     
     Fields: ticker, close_price, target_price, target_date, last_updated
-    Also keeps legacy analyst-level fields for backwards compatibility.
     """
     __tablename__ = "target_prices"
     
@@ -571,37 +492,12 @@ class TargetPrice(Base):
     target_date = Column(String(100), nullable=True)
     last_updated = Column(String(100), nullable=True)
     
-    # Legacy analyst information
-    analyst_name = Column(String(200), nullable=True)
-    analyst_firm = Column(String(200), nullable=True)
-    
-    # Legacy target price details
-    previous_target = Column(Float, nullable=True)
-    target_change = Column(Float, nullable=True)
-    target_change_pct = Column(Float, nullable=True)
-    
-    # Rating information
-    rating = Column(SQLEnum(RatingType), nullable=True)
-    previous_rating = Column(SQLEnum(RatingType), nullable=True)
-    rating_changed = Column(Boolean, default=False)
-    
-    # Price context
-    current_price_at_rating = Column(Float, nullable=True)
-    upside_to_target = Column(Float, nullable=True)
-    
-    # Confidence/accuracy
-    analyst_accuracy_score = Column(Float, nullable=True)
-    
-    # Timing
-    rating_date = Column(DateTime, nullable=True)
-    
     # Source metadata
     source = Column(String(100), nullable=True)
     raw_data = Column(JSON, nullable=True)
     
     __table_args__ = (
         Index('ix_target_prices_ticker_timestamp', 'ticker', 'timestamp'),
-        Index('ix_target_prices_analyst_firm', 'analyst_firm'),
     )
 
 
