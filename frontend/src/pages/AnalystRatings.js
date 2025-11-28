@@ -19,6 +19,7 @@ const DataCard = ({ title, value, subtitle }) => (
 
 /**
  * Extract analyst ratings from API response with fallback to raw_data
+ * Updated to use notebook-style field names (buy_ratings, hold_ratings, sell_ratings, total_ratings)
  */
 const extractRatings = (data) => {
   if (!data) return {};
@@ -34,26 +35,36 @@ const extractRatings = (data) => {
     currentPrice = prices[prices.length - 1]?.p;
   }
   
+  // Use notebook-style field names with fallbacks to raw_data
+  const buy = data.buy_ratings ?? consensus.buy ?? 0;
+  const hold = data.hold_ratings ?? consensus.hold ?? 0;
+  const sell = data.sell_ratings ?? consensus.sell ?? 0;
+  const totalAnalysts = data.total_ratings ?? consensus.numberOfAnalystRatings ?? (buy + hold + sell);
+  
+  // Price targets
+  const avgPriceTarget = data.price_target_average ?? priceTarget.average;
+  const highPriceTarget = data.price_target_high ?? priceTarget.high;
+  const lowPriceTarget = data.price_target_low ?? priceTarget.low;
+  
   // Calculate upside potential if not available
-  const avgPriceTarget = data.avg_price_target ?? priceTarget.average;
-  let upsidePotential = data.upside_potential;
-  if ((upsidePotential === null || upsidePotential === undefined) && avgPriceTarget && currentPrice && currentPrice > 0) {
+  let upsidePotential = null;
+  if (avgPriceTarget && currentPrice && currentPrice > 0) {
     upsidePotential = ((avgPriceTarget - currentPrice) / currentPrice) * 100;
   }
   
   return {
-    // Use parsed values first, fallback to raw_data
-    strong_buy: data.strong_buy_count ?? 0,
-    buy: data.buy_count || consensus.buy || 0,
-    hold: data.hold_count || consensus.hold || 0,
-    sell: data.sell_count || consensus.sell || 0,
-    strong_sell: data.strong_sell_count ?? 0,
-    total_analysts: data.total_analysts || consensus.numberOfAnalystRatings || 0,
-    consensus: data.consensus_text || data.consensus_rating || consensus.consensus || 'N/A',
-    consensus_score: data.consensus_score ?? consensus.consensusRating,
+    // Notebook-style fields - no strong_buy/strong_sell in notebook API
+    strong_buy: 0,
+    buy: buy,
+    hold: hold,
+    sell: sell,
+    strong_sell: 0,
+    total_analysts: totalAnalysts,
+    consensus: data.consensus_recommendation ?? consensus.consensus ?? 'N/A',
+    consensus_score: data.consensus_rating_score ?? consensus.consensusRating,
     avg_price_target: avgPriceTarget,
-    high_price_target: data.high_price_target ?? priceTarget.high,
-    low_price_target: data.low_price_target ?? priceTarget.low,
+    high_price_target: highPriceTarget,
+    low_price_target: lowPriceTarget,
     current_price: currentPrice,
     upside_potential: upsidePotential,
     timestamp: data.timestamp,

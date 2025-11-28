@@ -16,12 +16,33 @@ const DataCard = ({ title, value, subtitle, color }) => (
   </Paper>
 );
 
-const getSentimentLabel = (score) => {
-  if (score >= 0.5) return { label: 'Very Bullish', color: 'success' };
-  if (score >= 0.2) return { label: 'Bullish', color: 'success' };
-  if (score >= -0.2) return { label: 'Neutral', color: 'default' };
-  if (score >= -0.5) return { label: 'Bearish', color: 'error' };
+/**
+ * Calculate sentiment score from bullish/bearish percentages
+ * Returns value between -1 and 1
+ */
+const calculateSentimentScore = (bullish, bearish) => {
+  if (bullish === null || bullish === undefined || bearish === null || bearish === undefined) {
+    return null;
+  }
+  // Convert to -1 to 1 scale where bullish is positive and bearish is negative
+  return (bullish - bearish) / 100;
+};
+
+const getSentimentLabel = (bullish, bearish) => {
+  if (bullish === null || bullish === undefined) {
+    return { label: 'Unknown', color: 'default' };
+  }
+  const diff = bullish - bearish;
+  if (diff >= 30) return { label: 'Very Bullish', color: 'success' };
+  if (diff >= 10) return { label: 'Bullish', color: 'success' };
+  if (diff >= -10) return { label: 'Neutral', color: 'default' };
+  if (diff >= -30) return { label: 'Bearish', color: 'error' };
   return { label: 'Very Bearish', color: 'error' };
+};
+
+const formatPercent = (value) => {
+  if (value === null || value === undefined) return 'N/A';
+  return `${value.toFixed(1)}%`;
 };
 
 export default function NewsSentiment() {
@@ -42,7 +63,16 @@ export default function NewsSentiment() {
   );
 
   const sentiment = data?.data || {};
-  const sentimentInfo = getSentimentLabel(sentiment.sentiment_score || 0);
+  
+  // Extract notebook-style fields
+  const stockBullish = sentiment.stock_bullish_score;
+  const stockBearish = sentiment.stock_bearish_score;
+  const sectorBullish = sentiment.sector_bullish_score;
+  const sectorBearish = sentiment.sector_bearish_score;
+  
+  // Calculate sentiment score from bullish/bearish
+  const sentimentScore = calculateSentimentScore(stockBullish, stockBearish);
+  const sentimentInfo = getSentimentLabel(stockBullish, stockBearish);
 
   return (
     <Box>
@@ -72,31 +102,32 @@ export default function NewsSentiment() {
         <ErrorMessage message="Failed to load news sentiment" onRetry={refetch} />
       ) : (
         <Grid container spacing={3}>
-          {/* Summary Cards */}
+          {/* Summary Cards - Using notebook-style fields */}
           <Grid item xs={12} sm={6} md={3}>
             <DataCard 
-              title="Sentiment Score" 
-              value={(sentiment.sentiment_score || 0).toFixed(2)}
-              color={sentiment.sentiment_score > 0 ? '#2e7d32' : sentiment.sentiment_score < 0 ? '#d32f2f' : 'inherit'}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <DataCard 
-              title="Total Articles" 
-              value={sentiment.total_articles || sentiment.article_count || 0}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <DataCard 
-              title="Positive Articles" 
-              value={sentiment.positive_articles || sentiment.bullish_count || 0}
+              title="Stock Bullish" 
+              value={formatPercent(stockBullish)}
               color="#2e7d32"
             />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <DataCard 
-              title="Negative Articles" 
-              value={sentiment.negative_articles || sentiment.bearish_count || 0}
+              title="Stock Bearish" 
+              value={formatPercent(stockBearish)}
+              color="#d32f2f"
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <DataCard 
+              title="Sector Bullish" 
+              value={formatPercent(sectorBullish)}
+              color="#2e7d32"
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <DataCard 
+              title="Sector Bearish" 
+              value={formatPercent(sectorBearish)}
               color="#d32f2f"
             />
           </Grid>
@@ -104,7 +135,12 @@ export default function NewsSentiment() {
           {/* Sentiment Gauge */}
           <Grid item xs={12} md={6}>
             <SentimentChart 
-              data={sentiment} 
+              data={{ 
+                ...sentiment, 
+                sentiment_score: sentimentScore,
+                bullish_percent: stockBullish,
+                bearish_percent: stockBearish
+              }} 
               title={`${selectedTicker} Sentiment Gauge`}
               variant="gauge"
             />
@@ -113,8 +149,13 @@ export default function NewsSentiment() {
           {/* Sentiment Distribution */}
           <Grid item xs={12} md={6}>
             <SentimentChart 
-              data={sentiment} 
-              title={`${selectedTicker} Article Distribution`}
+              data={{ 
+                ...sentiment,
+                positive_percent: stockBullish,
+                negative_percent: stockBearish,
+                neutral_percent: stockBullish && stockBearish ? 100 - stockBullish - stockBearish : null
+              }} 
+              title={`${selectedTicker} Sentiment Distribution`}
               variant="doughnut"
             />
           </Grid>
@@ -134,20 +175,28 @@ export default function NewsSentiment() {
                   />
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
-                  <Typography variant="subtitle2" color="textSecondary">Buzz Score</Typography>
-                  <Typography variant="h6">{sentiment.buzz_score?.toFixed(2) || 'N/A'}</Typography>
+                  <Typography variant="subtitle2" color="textSecondary">Stock Bullish Score</Typography>
+                  <Typography variant="h6">{formatPercent(stockBullish)}</Typography>
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
-                  <Typography variant="subtitle2" color="textSecondary">News Velocity</Typography>
-                  <Typography variant="h6">{sentiment.news_velocity?.toFixed(2) || 'N/A'}</Typography>
+                  <Typography variant="subtitle2" color="textSecondary">Stock Bearish Score</Typography>
+                  <Typography variant="h6">{formatPercent(stockBearish)}</Typography>
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
-                  <Typography variant="subtitle2" color="textSecondary">Sector Avg Sentiment</Typography>
-                  <Typography variant="h6">{sentiment.sector_average_sentiment?.toFixed(2) || 'N/A'}</Typography>
+                  <Typography variant="subtitle2" color="textSecondary">Sector Bullish Score</Typography>
+                  <Typography variant="h6">{formatPercent(sectorBullish)}</Typography>
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
-                  <Typography variant="subtitle2" color="textSecondary">Sector Avg Buzz</Typography>
-                  <Typography variant="h6">{sentiment.sector_average_buzz?.toFixed(2) || 'N/A'}</Typography>
+                  <Typography variant="subtitle2" color="textSecondary">Sector Bearish Score</Typography>
+                  <Typography variant="h6">{formatPercent(sectorBearish)}</Typography>
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <Typography variant="subtitle2" color="textSecondary">Net Sentiment</Typography>
+                  <Typography variant="h6" sx={{ 
+                    color: sentimentScore > 0 ? '#2e7d32' : sentimentScore < 0 ? '#d32f2f' : 'inherit' 
+                  }}>
+                    {sentimentScore !== null ? sentimentScore.toFixed(2) : 'N/A'}
+                  </Typography>
                 </Grid>
                 {sentiment.timestamp && (
                   <Grid item xs={12}>
