@@ -78,20 +78,26 @@ def _parse_period_to_hours(period: str) -> int:
 
     Returns:
         Number of hours
+        
+    Raises:
+        ValueError: If period format is invalid
     """
     period = period.lower().strip()
 
-    if period.endswith('h'):
-        return int(period[:-1])
-    elif period.endswith('d'):
-        return int(period[:-1]) * 24
-    elif period.endswith('w'):
-        return int(period[:-1]) * 24 * 7
-    elif period.endswith('m'):
-        return int(period[:-1]) * 24 * 30  # Approximate month
-    else:
-        # Default to treating as hours
-        return int(period)
+    try:
+        if period.endswith('h'):
+            return int(period[:-1])
+        elif period.endswith('d'):
+            return int(period[:-1]) * 24
+        elif period.endswith('w'):
+            return int(period[:-1]) * 24 * 7
+        elif period.endswith('m'):
+            return int(period[:-1]) * 24 * 30  # Approximate month
+        else:
+            # Default to treating as hours
+            return int(period)
+    except ValueError:
+        raise ValueError(f"Invalid period format: {period}. Use formats like 1h, 4h, 1d, 1w")
 
 
 def _determine_trend(old_value: Optional[float], new_value: Optional[float], threshold: float = 0.01) -> TrendDirection:
