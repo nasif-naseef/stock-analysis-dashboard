@@ -580,6 +580,193 @@ class TestResponseBuilder:
         assert result["upside_potential"] == 10.0
         assert result["current_price"] == 100.0
         assert result["avg_price_target"] == 110.0
+    
+    def test_build_news_sentiment_with_correct_paths(self):
+        """Test news sentiment parsing with newsSentimentScore.stock and sector paths"""
+        from app.utils.data_processor import ResponseBuilder
+        
+        builder = ResponseBuilder()
+        
+        # TipRanks format with newsSentimentScore
+        raw_data = {
+            "newsSentimentScore": {
+                "stock": {
+                    "bullishPercent": 65.5,
+                    "bearishPercent": 34.5
+                },
+                "sector": {
+                    "bullishPercent": 55.0,
+                    "bearishPercent": 45.0
+                }
+            },
+            "buzz": 0.85,
+            "newsScore": 7.5
+        }
+        
+        result = builder.build_news_sentiment(raw_data, "AAPL")
+        
+        assert result["ticker"] == "AAPL"
+        assert result["stock_bullish_score"] == 65.5
+        assert result["stock_bearish_score"] == 34.5
+        assert result["sector_bullish_score"] == 55.0
+        assert result["sector_bearish_score"] == 45.0
+        assert result["buzz_score"] == 0.85
+        assert result["news_score"] == 7.5
+        assert result["sentiment_score"] == 31.0  # 65.5 - 34.5
+        assert result["source"] == "tipranks"
+    
+    def test_build_news_sentiment_with_empty_data(self):
+        """Test news sentiment parsing with empty data"""
+        from app.utils.data_processor import ResponseBuilder
+        
+        builder = ResponseBuilder()
+        
+        result = builder.build_news_sentiment({}, "TEST")
+        
+        assert result["ticker"] == "TEST"
+        assert result["stock_bullish_score"] is None
+        assert result["stock_bearish_score"] is None
+        assert result["sector_bullish_score"] is None
+        assert result["sector_bearish_score"] is None
+    
+    def test_build_crowd_statistics_with_correct_paths(self):
+        """Test crowd statistics parsing with generalStatsAll path"""
+        from app.utils.data_processor import ResponseBuilder
+        
+        builder = ResponseBuilder()
+        
+        # TipRanks format with generalStatsAll
+        raw_data = {
+            "generalStatsAll": {
+                "portfoliosHolding": 1500,
+                "amountOfPortfolios": 25000,
+                "percentAllocated": 3.5,
+                "percentOverLast7Days": 1.2,
+                "percentOverLast30Days": 5.8,
+                "score": 7.5
+            }
+        }
+        
+        result = builder.build_crowd_statistics(raw_data, "TSLA")
+        
+        assert result["ticker"] == "TSLA"
+        assert result["portfolio_holding"] == 1500
+        assert result["amount_of_portfolios"] == 25000
+        assert result["percent_allocated"] == 3.5
+        assert result["percent_over_last_7d"] == 1.2
+        assert result["percent_over_last_30d"] == 5.8
+        assert result["score"] == 7.5
+        assert result["source"] == "tipranks"
+    
+    def test_build_crowd_statistics_with_stats_type(self):
+        """Test crowd statistics with different stats types"""
+        from app.utils.data_processor import ResponseBuilder
+        
+        builder = ResponseBuilder()
+        
+        raw_data = {
+            "generalStatsIndividual": {
+                "portfoliosHolding": 1000,
+                "score": 6.5
+            }
+        }
+        
+        result = builder.build_crowd_statistics(raw_data, "NVDA", stats_type='individual')
+        
+        assert result["ticker"] == "NVDA"
+        assert result["portfolio_holding"] == 1000
+        assert result["score"] == 6.5
+    
+    def test_build_crowd_statistics_with_empty_data(self):
+        """Test crowd statistics with empty data"""
+        from app.utils.data_processor import ResponseBuilder
+        
+        builder = ResponseBuilder()
+        
+        result = builder.build_crowd_statistics({}, "TEST")
+        
+        assert result["ticker"] == "TEST"
+        assert result["portfolio_holding"] == 0
+        assert result["amount_of_portfolios"] == 0
+        assert result["percent_allocated"] == 0.0
+        assert result["score"] == 0.0
+    
+    def test_build_hedge_fund_data_with_overview_path(self):
+        """Test hedge fund data parsing with overview.hedgeFundData path"""
+        from app.utils.data_processor import ResponseBuilder
+        
+        builder = ResponseBuilder()
+        
+        # TipRanks format with overview.hedgeFundData
+        raw_data = {
+            "overview": {
+                "hedgeFundData": {
+                    "sentiment": 0.75,
+                    "trendAction": 2,
+                    "trendValue": 15,
+                    "newPositions": 10,
+                    "increasedPositions": 25,
+                    "decreasedPositions": 5,
+                    "soldOutPositions": 2,
+                    "count": 150,
+                    "totalSharesHeld": 5000000,
+                    "marketValue": 750000000
+                }
+            }
+        }
+        
+        result = builder.build_hedge_fund_data(raw_data, "GOOGL")
+        
+        assert result["ticker"] == "GOOGL"
+        assert result["sentiment"] == 0.75
+        assert result["trend_action"] == 2
+        assert result["trend_value"] == 15
+        assert result["new_positions"] == 10
+        assert result["increased_positions"] == 25
+        assert result["decreased_positions"] == 5
+        assert result["closed_positions"] == 2
+        assert result["hedge_fund_count"] == 150
+        assert result["total_shares_held"] == 5000000
+        assert result["market_value_held"] == 750000000
+        assert result["source"] == "tipranks"
+    
+    def test_build_hedge_fund_data_fallback_to_direct_path(self):
+        """Test hedge fund data fallback to direct hedgeFundData path"""
+        from app.utils.data_processor import ResponseBuilder
+        
+        builder = ResponseBuilder()
+        
+        # Legacy format with direct hedgeFundData
+        raw_data = {
+            "hedgeFundData": {
+                "sentiment": 0.5,
+                "trendAction": 1,
+                "trendValue": 10,
+                "count": 100
+            }
+        }
+        
+        result = builder.build_hedge_fund_data(raw_data, "MSFT")
+        
+        assert result["ticker"] == "MSFT"
+        assert result["sentiment"] == 0.5
+        assert result["trend_action"] == 1
+        assert result["trend_value"] == 10
+        assert result["hedge_fund_count"] == 100
+    
+    def test_build_hedge_fund_data_with_empty_data(self):
+        """Test hedge fund data with empty data"""
+        from app.utils.data_processor import ResponseBuilder
+        
+        builder = ResponseBuilder()
+        
+        result = builder.build_hedge_fund_data({}, "TEST")
+        
+        assert result["ticker"] == "TEST"
+        assert result["sentiment"] is None
+        assert result["trend_action"] is None
+        assert result["trend_value"] is None
+        assert result["hedge_fund_count"] == 0
 
 
 if __name__ == "__main__":
