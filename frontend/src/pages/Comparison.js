@@ -195,8 +195,8 @@ export default function Comparison() {
               </Paper>
             </Grid>
           ) : tickersList.length > 0 ? (
-            tickersList.map(ticker => (
-              <Grid item xs={12} key={ticker?.ticker || Math.random()}>
+            tickersList.map((ticker, index) => (
+              <Grid item xs={12} key={ticker?.ticker || `ticker-${index}`}>
                 <Paper sx={{ p: 2 }}>
                   <Box display="flex" alignItems="center" gap={2} mb={2}>
                     <Typography variant="h6">{ticker?.ticker || 'N/A'}</Typography>
@@ -249,8 +249,8 @@ export default function Comparison() {
                 <Typography variant="h6" gutterBottom>Summary Comparison</Typography>
                 <Divider sx={{ mb: 2 }} />
                 <Grid container spacing={2}>
-                  {tickersList.map(ticker => (
-                    <Grid item xs={12} sm={6} md={12 / tickersList.length} key={ticker?.ticker || Math.random()}>
+                  {tickersList.map((ticker, index) => (
+                    <Grid item xs={12} sm={6} md={12 / tickersList.length} key={ticker?.ticker || `summary-${index}`}>
                       <Paper sx={{ p: 2, backgroundColor: '#f5f5f5' }}>
                         <Typography variant="subtitle1" fontWeight="bold">{ticker?.ticker || 'N/A'}</Typography>
                         <Typography variant="body2">

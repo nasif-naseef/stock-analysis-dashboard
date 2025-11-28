@@ -199,6 +199,10 @@ async def seed_demo_data(
         "MSFT": {"price": 378.20, "target": 420.00},
     }
     
+    # Pre-defined choice lists for better performance
+    rating_choices = [RatingType.BUY, RatingType.STRONG_BUY, RatingType.HOLD]
+    sentiment_choices = [SentimentType.BULLISH, SentimentType.NEUTRAL]
+    
     try:
         for ticker in tickers:
             ticker_price = price_data.get(ticker, {"price": 100.0, "target": 120.0})
@@ -213,7 +217,7 @@ async def seed_demo_data(
                 sell_count=random.randint(0, 5),
                 strong_sell_count=random.randint(0, 2),
                 total_analysts=random.randint(20, 40),
-                consensus_rating=random.choice([RatingType.BUY, RatingType.STRONG_BUY, RatingType.HOLD]),
+                consensus_rating=random.choice(rating_choices),
                 consensus_score=round(random.uniform(3.5, 4.5), 2),
                 avg_price_target=ticker_price["target"],
                 high_price_target=ticker_price["target"] * 1.15,
@@ -229,7 +233,7 @@ async def seed_demo_data(
             news_sentiment = NewsSentiment(
                 ticker=ticker,
                 timestamp=timestamp,
-                sentiment=random.choice([SentimentType.BULLISH, SentimentType.NEUTRAL]),
+                sentiment=random.choice(sentiment_choices),
                 sentiment_score=round(random.uniform(0.1, 0.7), 4),
                 buzz_score=round(random.uniform(0.5, 0.9), 4),
                 news_score=round(random.uniform(0.4, 0.8), 4),
@@ -277,7 +281,7 @@ async def seed_demo_data(
                 increased_positions=random.randint(30, 80),
                 decreased_positions=random.randint(20, 50),
                 closed_positions=random.randint(2, 15),
-                hedge_fund_sentiment=random.choice([SentimentType.BULLISH, SentimentType.NEUTRAL]),
+                hedge_fund_sentiment=random.choice(sentiment_choices),
                 smart_money_score=round(random.uniform(55, 85), 2),
                 source="demo_data"
             )
@@ -288,7 +292,7 @@ async def seed_demo_data(
             crowd = CrowdStatistics(
                 ticker=ticker,
                 timestamp=timestamp,
-                crowd_sentiment=random.choice([SentimentType.BULLISH, SentimentType.NEUTRAL]),
+                crowd_sentiment=random.choice(sentiment_choices),
                 sentiment_score=round(random.uniform(0.1, 0.6), 4),
                 mentions_count=random.randint(1000, 10000),
                 mentions_change=round(random.uniform(-10, 30), 2),
@@ -309,7 +313,7 @@ async def seed_demo_data(
             blogger = BloggerSentiment(
                 ticker=ticker,
                 timestamp=timestamp,
-                blogger_sentiment=random.choice([SentimentType.BULLISH, SentimentType.NEUTRAL]),
+                blogger_sentiment=random.choice(sentiment_choices),
                 sentiment_score=round(random.uniform(0.2, 0.7), 4),
                 total_articles=random.randint(10, 50),
                 bullish_articles=random.randint(5, 30),
@@ -352,7 +356,7 @@ async def seed_demo_data(
                 resistance_1=ticker_price["price"] * 1.03,
                 resistance_2=ticker_price["price"] * 1.06,
                 pivot_point=ticker_price["price"],
-                overall_signal=random.choice([SentimentType.BULLISH, SentimentType.NEUTRAL]),
+                overall_signal=random.choice(sentiment_choices),
                 source="demo_data"
             )
             db.add(technical)
