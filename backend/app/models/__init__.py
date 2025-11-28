@@ -24,6 +24,11 @@ from app.models.stock_data import (
     DataCollectionLog,
 )
 
+from app.models.configuration import (
+    TickerConfiguration,
+    APIConfiguration,
+)
+
 __all__ = [
     # Base
     "Base",
@@ -42,4 +47,7 @@ __all__ = [
     "TargetPrice",
     "ArticleAnalytics",
     "DataCollectionLog",
+    # Configuration Models
+    "TickerConfiguration",
+    "APIConfiguration",
 ]
