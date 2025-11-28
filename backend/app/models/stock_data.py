@@ -2,15 +2,19 @@
 SQLAlchemy Models for Stock Analysis Data
 
 This module contains all database models for storing stock analysis data including:
-- Analyst Ratings
+- Analyst Consensus and History
 - News Sentiment
-- Quantamental Scores
 - Hedge Fund Data
+- Insider Scores
 - Crowd Statistics
 - Blogger Sentiment
-- Technical Indicators
+- Quantamental Scores
 - Target Prices
-- Article Analytics
+- Article Distribution and Sentiment
+- Support/Resistance Levels
+- Stop Loss Recommendations
+- Chart Events
+- Technical Summaries
 """
 from datetime import datetime
 from sqlalchemy import (
@@ -50,9 +54,28 @@ class TimeframeType(enum.Enum):
     ONE_MONTH = "1M"
 
 
+class StopLossType(enum.Enum):
+    """Enum for stop loss calculation types"""
+    VOLATILITY_BASED = "Volatility-Based"
+    CHART_BASED = "Chart-Based"
+
+
+class StopLossDirection(enum.Enum):
+    """Enum for stop loss direction"""
+    BELOW_LONG = "Below (Long Position)"
+    ABOVE_SHORT = "Above (Short Position)"
+
+
+class StopLossTightness(enum.Enum):
+    """Enum for stop loss tightness"""
+    TIGHT = "Tight"
+    MEDIUM = "Medium"
+    LOOSE = "Loose"
+
+
 class AnalystRating(Base):
     """
-    Model for storing analyst ratings and recommendations
+    Model for storing analyst ratings and recommendations (legacy)
     
     Contains aggregated analyst ratings with buy/hold/sell counts
     and average price targets from professional analysts.
@@ -91,11 +114,79 @@ class AnalystRating(Base):
     )
 
 
+class AnalystConsensus(Base):
+    """
+    Model for storing analyst consensus data matching notebook API structure.
+    
+    Fields match the response model exactly:
+    - ticker, total_ratings, buy_ratings, hold_ratings, sell_ratings
+    - consensus_recommendation, consensus_rating_score
+    - price_target_high, price_target_low, price_target_average
+    """
+    __tablename__ = "analyst_consensus"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    ticker = Column(String(10), nullable=False, index=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    
+    # Rating counts
+    total_ratings = Column(Integer, nullable=True)
+    buy_ratings = Column(Integer, nullable=True)
+    hold_ratings = Column(Integer, nullable=True)
+    sell_ratings = Column(Integer, nullable=True)
+    
+    # Consensus
+    consensus_recommendation = Column(String(50), nullable=True)  # e.g., "Moderate Buy"
+    consensus_rating_score = Column(Float, nullable=True)
+    
+    # Price targets
+    price_target_high = Column(Float, nullable=True)
+    price_target_low = Column(Float, nullable=True)
+    price_target_average = Column(Float, nullable=True)
+    
+    # Source metadata
+    source = Column(String(100), nullable=True)
+    raw_data = Column(JSON, nullable=True)
+    
+    __table_args__ = (
+        Index('ix_analyst_consensus_ticker_timestamp', 'ticker', 'timestamp'),
+    )
+
+
+class HistoricalAnalystConsensus(Base):
+    """
+    Model for storing historical analyst consensus data.
+    
+    Fields: date, buy, hold, sell, consensus, priceTarget
+    """
+    __tablename__ = "historical_analyst_consensus"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    ticker = Column(String(10), nullable=False, index=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    
+    # Historical data
+    date = Column(String(50), nullable=True)
+    buy = Column(Integer, nullable=True)
+    hold = Column(Integer, nullable=True)
+    sell = Column(Integer, nullable=True)
+    consensus = Column(String(50), nullable=True)
+    price_target = Column(Float, nullable=True)
+    
+    # Source metadata
+    raw_data = Column(JSON, nullable=True)
+    
+    __table_args__ = (
+        Index('ix_historical_analyst_consensus_ticker_timestamp', 'ticker', 'timestamp'),
+    )
+
+
 class NewsSentiment(Base):
     """
-    Model for storing news sentiment analysis data
+    Model for storing news sentiment analysis data matching notebook API structure.
     
-    Captures sentiment scores from news articles related to stocks.
+    Fields: ticker, stock_bullish_score, stock_bearish_score, 
+            sector_bullish_score, sector_bearish_score
     """
     __tablename__ = "news_sentiment"
     
@@ -103,19 +194,23 @@ class NewsSentiment(Base):
     ticker = Column(String(10), nullable=False, index=True)
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     
-    # Sentiment metrics
+    # Stock sentiment scores (from newsSentimentScore.stock)
+    stock_bullish_score = Column(Float, nullable=True)
+    stock_bearish_score = Column(Float, nullable=True)
+    
+    # Sector sentiment scores (from newsSentimentScore.sector)
+    sector_bullish_score = Column(Float, nullable=True)
+    sector_bearish_score = Column(Float, nullable=True)
+    
+    # Legacy fields for backwards compatibility
     sentiment = Column(SQLEnum(SentimentType), nullable=True)
     sentiment_score = Column(Float, nullable=True)  # -1 to 1 scale
-    buzz_score = Column(Float, nullable=True)  # News volume/attention score
-    news_score = Column(Float, nullable=True)  # Overall news score
-    
-    # Article counts
+    buzz_score = Column(Float, nullable=True)
+    news_score = Column(Float, nullable=True)
     total_articles = Column(Integer, default=0)
     positive_articles = Column(Integer, default=0)
     negative_articles = Column(Integer, default=0)
     neutral_articles = Column(Integer, default=0)
-    
-    # Sector comparison
     sector_sentiment = Column(Float, nullable=True)
     sector_avg = Column(Float, nullable=True)
     
@@ -130,10 +225,10 @@ class NewsSentiment(Base):
 
 class QuantamentalScore(Base):
     """
-    Model for storing quantamental analysis scores
+    Model for storing quantamental analysis scores matching notebook API structure.
     
-    Combines quantitative and fundamental analysis metrics
-    into composite scores for stock evaluation.
+    Fields: ticker, overall, growth, value, income, quality, momentum
+    Also keeps legacy fundamental/valuation metrics for backwards compatibility.
     """
     __tablename__ = "quantamental_scores"
     
@@ -141,8 +236,16 @@ class QuantamentalScore(Base):
     ticker = Column(String(10), nullable=False, index=True)
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     
-    # Overall scores
-    overall_score = Column(Float, nullable=True)  # 0-100 scale
+    # Notebook API fields
+    overall = Column(Integer, nullable=True)
+    growth = Column(Integer, nullable=True)
+    value = Column(Integer, nullable=True)
+    income = Column(Integer, nullable=True)
+    quality = Column(Integer, nullable=True)
+    momentum = Column(Integer, nullable=True)
+    
+    # Legacy overall scores (mapped from notebook fields)
+    overall_score = Column(Float, nullable=True)
     quality_score = Column(Float, nullable=True)
     value_score = Column(Float, nullable=True)
     growth_score = Column(Float, nullable=True)
@@ -178,9 +281,10 @@ class QuantamentalScore(Base):
 
 class HedgeFundData(Base):
     """
-    Model for storing hedge fund activity and holdings data
+    Model for storing hedge fund activity and holdings data matching notebook API structure.
     
-    Tracks institutional ownership, hedge fund positions, and trading activity.
+    Fields: ticker, sentiment, trend_action, trend_value
+    Also keeps legacy institutional ownership fields for backwards compatibility.
     """
     __tablename__ = "hedge_fund_data"
     
@@ -188,7 +292,12 @@ class HedgeFundData(Base):
     ticker = Column(String(10), nullable=False, index=True)
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     
-    # Ownership metrics
+    # Notebook API fields (from overview.hedgeFundData)
+    sentiment = Column(Float, nullable=True)
+    trend_action = Column(Integer, nullable=True)
+    trend_value = Column(Integer, nullable=True)
+    
+    # Legacy ownership metrics
     institutional_ownership_pct = Column(Float, nullable=True)
     hedge_fund_count = Column(Integer, default=0)
     total_shares_held = Column(Float, nullable=True)
@@ -200,9 +309,9 @@ class HedgeFundData(Base):
     decreased_positions = Column(Integer, default=0)
     closed_positions = Column(Integer, default=0)
     
-    # Sentiment indicators
+    # Legacy sentiment indicators
     hedge_fund_sentiment = Column(SQLEnum(SentimentType), nullable=True)
-    smart_money_score = Column(Float, nullable=True)  # 0-100 scale
+    smart_money_score = Column(Float, nullable=True)
     
     # Top holders info (JSON for flexibility)
     top_holders = Column(JSON, nullable=True)
@@ -220,11 +329,35 @@ class HedgeFundData(Base):
     )
 
 
+class InsiderScore(Base):
+    """
+    Model for storing insider confidence/score data matching notebook API structure.
+    
+    Fields: ticker, stock_score, sector_score, score
+    """
+    __tablename__ = "insider_scores"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    ticker = Column(String(10), nullable=False, index=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    
+    # Insider score fields (from overview.insidrConfidenceSignal)
+    stock_score = Column(Float, nullable=True)
+    sector_score = Column(Float, nullable=True)
+    score = Column(Float, nullable=True)
+    
+    # Source metadata
+    source = Column(String(100), nullable=True)
+    raw_data = Column(JSON, nullable=True)
+    
+    __table_args__ = (
+        Index('ix_insider_scores_ticker_timestamp', 'ticker', 'timestamp'),
+    )
+
+
 class CrowdStatistics(Base):
     """
-    Model for storing crowd sentiment and social statistics
-    
-    Captures retail investor sentiment from social media and forums.
+    Model for storing crowd sentiment and social statistics (legacy).
     """
     __tablename__ = "crowd_statistics"
     
@@ -234,11 +367,11 @@ class CrowdStatistics(Base):
     
     # Sentiment metrics
     crowd_sentiment = Column(SQLEnum(SentimentType), nullable=True)
-    sentiment_score = Column(Float, nullable=True)  # -1 to 1 scale
+    sentiment_score = Column(Float, nullable=True)
     
     # Social media metrics
     mentions_count = Column(Integer, default=0)
-    mentions_change = Column(Float, nullable=True)  # Percentage change
+    mentions_change = Column(Float, nullable=True)
     impressions = Column(Integer, default=0)
     engagement_rate = Column(Float, nullable=True)
     
@@ -266,11 +399,48 @@ class CrowdStatistics(Base):
     )
 
 
+class CrowdStats(Base):
+    """
+    Model for storing crowd statistics matching notebook API structure.
+    
+    Fields: ticker, portfolio_holding, amount_of_portfolios, amount_of_public_portfolios,
+            percent_allocated, based_on_portfolios, percent_over_last_7d, percent_over_last_30d,
+            score, individual_sector_average, frequency
+    """
+    __tablename__ = "crowd_stats"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    ticker = Column(String(10), nullable=False, index=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    stats_type = Column(String(20), nullable=True)  # 'all', 'individual', 'institution'
+    
+    # Notebook API fields (from generalStats{type})
+    portfolio_holding = Column(Integer, default=0)
+    amount_of_portfolios = Column(Integer, default=0)
+    amount_of_public_portfolios = Column(Integer, default=0)
+    percent_allocated = Column(Float, default=0.0)
+    based_on_portfolios = Column(Integer, default=0)
+    percent_over_last_7d = Column(Float, default=0.0)
+    percent_over_last_30d = Column(Float, default=0.0)
+    score = Column(Float, default=0.0)
+    individual_sector_average = Column(Float, default=0.0)
+    frequency = Column(Float, default=0.0)
+    
+    # Source metadata
+    source = Column(String(100), nullable=True)
+    raw_data = Column(JSON, nullable=True)
+    
+    __table_args__ = (
+        Index('ix_crowd_stats_ticker_timestamp', 'ticker', 'timestamp'),
+    )
+
+
 class BloggerSentiment(Base):
     """
-    Model for storing blogger and influencer sentiment data
+    Model for storing blogger sentiment matching notebook API structure.
     
-    Tracks opinions and sentiment from financial bloggers and influencers.
+    Fields: ticker, bearish, neutral, bullish, bearish_count, neutral_count,
+            bullish_count, score, avg
     """
     __tablename__ = "blogger_sentiment"
     
@@ -278,25 +448,27 @@ class BloggerSentiment(Base):
     ticker = Column(String(10), nullable=False, index=True)
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     
-    # Sentiment metrics
-    blogger_sentiment = Column(SQLEnum(SentimentType), nullable=True)
-    sentiment_score = Column(Float, nullable=True)  # -1 to 1 scale
+    # Notebook API fields (from bloggerSentiment)
+    bearish = Column(Integer, default=0)
+    neutral = Column(Integer, default=0)
+    bullish = Column(Integer, default=0)
+    bearish_count = Column(Integer, default=0)
+    neutral_count = Column(Integer, default=0)
+    bullish_count = Column(Integer, default=0)
+    score = Column(Float, default=0.0)
+    avg = Column(Float, default=0.0)
     
-    # Article/Post counts
+    # Legacy fields for backwards compatibility
+    blogger_sentiment = Column(SQLEnum(SentimentType), nullable=True)
+    sentiment_score = Column(Float, nullable=True)
     total_articles = Column(Integer, default=0)
     bullish_articles = Column(Integer, default=0)
     bearish_articles = Column(Integer, default=0)
     neutral_articles = Column(Integer, default=0)
-    
-    # Blogger metrics
     bullish_percent = Column(Float, nullable=True)
     bearish_percent = Column(Float, nullable=True)
-    
-    # Accuracy tracking (if available)
     avg_blogger_accuracy = Column(Float, nullable=True)
     top_blogger_opinion = Column(String(50), nullable=True)
-    
-    # Historical comparison
     sentiment_change_1d = Column(Float, nullable=True)
     sentiment_change_1w = Column(Float, nullable=True)
     sentiment_change_1m = Column(Float, nullable=True)
@@ -382,9 +554,10 @@ class TechnicalIndicator(Base):
 
 class TargetPrice(Base):
     """
-    Model for storing analyst target price estimates
+    Model for storing target price data matching notebook API structure.
     
-    Individual analyst price targets and recommendations.
+    Fields: ticker, close_price, target_price, target_date, last_updated
+    Also keeps legacy analyst-level fields for backwards compatibility.
     """
     __tablename__ = "target_prices"
     
@@ -392,12 +565,17 @@ class TargetPrice(Base):
     ticker = Column(String(10), nullable=False, index=True)
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     
-    # Analyst information
+    # Notebook API fields
+    close_price = Column(Float, nullable=True)
+    target_price = Column(Float, nullable=True)
+    target_date = Column(String(100), nullable=True)
+    last_updated = Column(String(100), nullable=True)
+    
+    # Legacy analyst information
     analyst_name = Column(String(200), nullable=True)
     analyst_firm = Column(String(200), nullable=True)
     
-    # Target price details
-    target_price = Column(Float, nullable=True)
+    # Legacy target price details
     previous_target = Column(Float, nullable=True)
     target_change = Column(Float, nullable=True)
     target_change_pct = Column(Float, nullable=True)
@@ -409,10 +587,10 @@ class TargetPrice(Base):
     
     # Price context
     current_price_at_rating = Column(Float, nullable=True)
-    upside_to_target = Column(Float, nullable=True)  # Percentage
+    upside_to_target = Column(Float, nullable=True)
     
     # Confidence/accuracy
-    analyst_accuracy_score = Column(Float, nullable=True)  # Historical accuracy
+    analyst_accuracy_score = Column(Float, nullable=True)
     
     # Timing
     rating_date = Column(DateTime, nullable=True)
@@ -511,4 +689,216 @@ class DataCollectionLog(Base):
     
     __table_args__ = (
         Index('ix_data_collection_logs_timestamp_datatype', 'timestamp', 'data_type'),
+    )
+
+
+class ArticleDistribution(Base):
+    """
+    Model for storing article distribution data matching notebook API structure.
+    
+    Fields: ticker, total_articles, news_count, news_percentage,
+            social_count, social_percentage, web_count, web_percentage
+    """
+    __tablename__ = "article_distribution"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    ticker = Column(String(10), nullable=False, index=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    
+    # Article counts and percentages
+    total_articles = Column(Integer, default=0)
+    news_count = Column(Integer, default=0)
+    news_percentage = Column(Float, default=0.0)
+    social_count = Column(Integer, default=0)
+    social_percentage = Column(Float, default=0.0)
+    web_count = Column(Integer, default=0)
+    web_percentage = Column(Float, default=0.0)
+    
+    # Source metadata
+    source = Column(String(100), nullable=True)
+    raw_data = Column(JSON, nullable=True)
+    
+    __table_args__ = (
+        Index('ix_article_distribution_ticker_timestamp', 'ticker', 'timestamp'),
+    )
+
+
+class ArticleSentiment(Base):
+    """
+    Model for storing article sentiment data matching notebook API structure.
+    
+    Fields: ticker, sentiment_id, sentiment_label, sentiment_value,
+            subjectivity_id, subjectivity_label, subjectivity_value,
+            confidence_id, confidence_name
+    """
+    __tablename__ = "article_sentiment"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    ticker = Column(String(10), nullable=False, index=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    
+    # Sentiment data
+    sentiment_id = Column(String(50), nullable=True)
+    sentiment_label = Column(String(50), nullable=True)
+    sentiment_value = Column(Integer, nullable=True)
+    
+    # Subjectivity data
+    subjectivity_id = Column(String(50), nullable=True)
+    subjectivity_label = Column(String(50), nullable=True)
+    subjectivity_value = Column(Integer, nullable=True)
+    
+    # Confidence data
+    confidence_id = Column(String(50), nullable=True)
+    confidence_name = Column(String(50), nullable=True)
+    
+    # Source metadata
+    source = Column(String(100), nullable=True)
+    raw_data = Column(JSON, nullable=True)
+    
+    __table_args__ = (
+        Index('ix_article_sentiment_ticker_timestamp', 'ticker', 'timestamp'),
+    )
+
+
+class SupportResistance(Base):
+    """
+    Model for storing support/resistance levels matching notebook API structure.
+    
+    Fields: symbol, date, exchange, support_10, resistance_10, support_20, resistance_20,
+            support_40, resistance_40, support_100, resistance_100, support_250, resistance_250,
+            support_500, resistance_500
+    """
+    __tablename__ = "support_resistance"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    symbol = Column(String(10), nullable=False, index=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    
+    # Date and exchange
+    date = Column(String(50), nullable=True)
+    exchange = Column(String(50), nullable=True)
+    
+    # Support/Resistance levels for different periods
+    support_10 = Column(Float, nullable=True)
+    resistance_10 = Column(Float, nullable=True)
+    support_20 = Column(Float, nullable=True)
+    resistance_20 = Column(Float, nullable=True)
+    support_40 = Column(Float, nullable=True)
+    resistance_40 = Column(Float, nullable=True)
+    support_100 = Column(Float, nullable=True)
+    resistance_100 = Column(Float, nullable=True)
+    support_250 = Column(Float, nullable=True)
+    resistance_250 = Column(Float, nullable=True)
+    support_500 = Column(Float, nullable=True)
+    resistance_500 = Column(Float, nullable=True)
+    
+    # Source metadata
+    source = Column(String(100), nullable=True)
+    raw_data = Column(JSON, nullable=True)
+    
+    __table_args__ = (
+        Index('ix_support_resistance_symbol_timestamp', 'symbol', 'timestamp'),
+    )
+
+
+class StopLoss(Base):
+    """
+    Model for storing stop loss recommendations matching notebook API structure.
+    
+    Fields: ticker, recommended_stop_price, calculation_timestamp,
+            stop_type, direction, tightness
+    """
+    __tablename__ = "stop_loss"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    ticker = Column(String(10), nullable=False, index=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    
+    # Stop loss data
+    recommended_stop_price = Column(Float, nullable=True)
+    calculation_timestamp = Column(String(100), nullable=True)
+    stop_type = Column(String(50), default='Volatility-Based')
+    direction = Column(String(50), default='Below (Long Position)')
+    tightness = Column(String(50), default='Medium')
+    
+    # Source metadata
+    source = Column(String(100), nullable=True)
+    raw_data = Column(JSON, nullable=True)
+    
+    __table_args__ = (
+        Index('ix_stop_loss_ticker_timestamp', 'ticker', 'timestamp'),
+    )
+
+
+class ChartEvent(Base):
+    """
+    Model for storing chart events matching notebook API structure.
+    
+    Fields: ticker, event_id, event_type, event_name, price_period,
+            start_date, end_date, target_price, start_price, end_price, is_active
+    """
+    __tablename__ = "chart_events"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    ticker = Column(String(10), nullable=False, index=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    
+    # Event identification
+    event_id = Column(String(100), nullable=True)
+    event_type = Column(String(100), nullable=True)
+    event_name = Column(String(200), nullable=True)
+    price_period = Column(String(50), nullable=True)
+    
+    # Event dates
+    start_date = Column(String(100), nullable=True)
+    end_date = Column(String(100), nullable=True)
+    
+    # Price data
+    target_price = Column(Float, nullable=True)
+    start_price = Column(Float, nullable=True)
+    end_price = Column(Float, nullable=True)
+    
+    # Status
+    is_active = Column(Boolean, default=True)
+    
+    # Source metadata
+    source = Column(String(100), nullable=True)
+    raw_data = Column(JSON, nullable=True)
+    
+    __table_args__ = (
+        Index('ix_chart_events_ticker_timestamp', 'ticker', 'timestamp'),
+        Index('ix_chart_events_is_active', 'is_active'),
+    )
+
+
+class TechnicalSummary(Base):
+    """
+    Model for storing technical summaries matching notebook API structure.
+    
+    Fields: symbol, name, exchange, isin, instrumentId, category,
+            recommendation, signalStrength
+    """
+    __tablename__ = "technical_summaries"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    symbol = Column(String(10), nullable=False, index=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    
+    # Instrument identification
+    name = Column(String(200), nullable=True)
+    exchange = Column(String(50), nullable=True)
+    isin = Column(String(50), nullable=True)
+    instrument_id = Column(String(100), nullable=True)
+    
+    # Technical analysis
+    category = Column(String(100), nullable=True)
+    recommendation = Column(String(100), nullable=True)
+    signal_strength = Column(Float, nullable=True)
+    
+    # Source metadata
+    source = Column(String(100), nullable=True)
+    raw_data = Column(JSON, nullable=True)
+    
+    __table_args__ = (
+        Index('ix_technical_summaries_symbol_timestamp', 'symbol', 'timestamp'),
     )

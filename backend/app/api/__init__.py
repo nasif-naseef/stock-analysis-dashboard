@@ -7,6 +7,7 @@ from app.api.comparison import router as comparison_router
 from app.api.collection import router as collection_router
 from app.api.dashboard import router as dashboard_router
 from app.api.config import router as config_router
+from app.api.stock import router as stock_router
 
 __all__ = [
     "current_data_router",
@@ -15,4 +16,5 @@ __all__ = [
     "collection_router",
     "dashboard_router",
     "config_router",
+    "stock_router",
 ]
