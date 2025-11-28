@@ -372,28 +372,28 @@ class DataCollectionService:
                 )
                 return {"status": "error", "message": "No data received", "records": 0}
             
-            # Parse response
-            parsed_data = self.response_builder.build_hedge_fund_data(raw_data, ticker)
+            # Parse response using notebook-style method
+            parsed_data = self.response_builder.build_hedge_fund(raw_data, ticker)
             
-            # Create database record
+            # Create database record - map notebook-style fields to legacy database fields
             db_record = HedgeFundData(
                 ticker=parsed_data["ticker"],
-                timestamp=parsed_data["timestamp"],
-                institutional_ownership_pct=parsed_data["institutional_ownership_pct"],
-                hedge_fund_count=parsed_data["hedge_fund_count"],
-                total_shares_held=parsed_data["total_shares_held"],
-                market_value_held=parsed_data["market_value_held"],
-                new_positions=parsed_data["new_positions"],
-                increased_positions=parsed_data["increased_positions"],
-                decreased_positions=parsed_data["decreased_positions"],
-                closed_positions=parsed_data["closed_positions"],
-                hedge_fund_sentiment=parsed_data["hedge_fund_sentiment"],
-                smart_money_score=parsed_data["smart_money_score"],
-                top_holders=parsed_data["top_holders"],
-                shares_change_qoq=parsed_data["shares_change_qoq"],
-                ownership_change_qoq=parsed_data["ownership_change_qoq"],
-                source=parsed_data["source"],
-                raw_data=parsed_data["raw_data"]
+                timestamp=get_utc_now(),
+                institutional_ownership_pct=None,  # Not available in notebook-style response
+                hedge_fund_count=0,  # Not available in notebook-style response
+                total_shares_held=None,  # Not available in notebook-style response
+                market_value_held=None,  # Not available in notebook-style response
+                new_positions=0,  # Not available in notebook-style response
+                increased_positions=0,  # Not available in notebook-style response
+                decreased_positions=0,  # Not available in notebook-style response
+                closed_positions=0,  # Not available in notebook-style response
+                hedge_fund_sentiment=None,  # Would need determine_sentiment() call based on sentiment value
+                smart_money_score=None,  # Not available in notebook-style response
+                top_holders=None,  # Not available in notebook-style response
+                shares_change_qoq=None,  # Not available in notebook-style response
+                ownership_change_qoq=None,  # Not available in notebook-style response
+                source="tipranks",
+                raw_data=raw_data
             )
             
             db.add(db_record)
@@ -447,30 +447,30 @@ class DataCollectionService:
                 )
                 return {"status": "error", "message": "No data received", "records": 0}
             
-            # Parse response
-            parsed_data = self.response_builder.build_crowd_statistics(raw_data, ticker)
+            # Parse response using notebook-style method
+            parsed_data = self.response_builder.build_crowd_stats(raw_data, ticker)
             
-            # Create database record
+            # Create database record - map notebook-style fields to legacy database fields
             db_record = CrowdStatistics(
                 ticker=parsed_data["ticker"],
-                timestamp=parsed_data["timestamp"],
-                crowd_sentiment=parsed_data["crowd_sentiment"],
-                sentiment_score=parsed_data["sentiment_score"],
-                mentions_count=parsed_data["mentions_count"],
-                mentions_change=parsed_data["mentions_change"],
-                impressions=parsed_data["impressions"],
-                engagement_rate=parsed_data["engagement_rate"],
-                bullish_percent=parsed_data["bullish_percent"],
-                bearish_percent=parsed_data["bearish_percent"],
-                neutral_percent=parsed_data["neutral_percent"],
-                trending_score=parsed_data["trending_score"],
-                rank_day=parsed_data["rank_day"],
-                rank_week=parsed_data["rank_week"],
-                total_posts=parsed_data["total_posts"],
-                unique_users=parsed_data["unique_users"],
-                avg_sentiment_post=parsed_data["avg_sentiment_post"],
-                source=parsed_data["source"],
-                raw_data=parsed_data["raw_data"]
+                timestamp=get_utc_now(),
+                crowd_sentiment=None,  # Would need determine_sentiment() call based on score
+                sentiment_score=parsed_data.get("score"),
+                mentions_count=0,  # Not available in notebook-style response
+                mentions_change=None,  # Not available in notebook-style response
+                impressions=0,  # Not available in notebook-style response
+                engagement_rate=None,  # Not available in notebook-style response
+                bullish_percent=None,  # Not available in notebook-style response
+                bearish_percent=None,  # Not available in notebook-style response
+                neutral_percent=None,  # Not available in notebook-style response
+                trending_score=None,  # Not available in notebook-style response
+                rank_day=None,  # Not available in notebook-style response
+                rank_week=None,  # Not available in notebook-style response
+                total_posts=0,  # Not available in notebook-style response
+                unique_users=0,  # Not available in notebook-style response
+                avg_sentiment_post=None,  # Not available in notebook-style response
+                source="tipranks",
+                raw_data=raw_data
             )
             
             db.add(db_record)
@@ -524,28 +524,31 @@ class DataCollectionService:
                 )
                 return {"status": "error", "message": "No data received", "records": 0}
             
-            # Parse response
+            # Parse response using notebook-style method
             parsed_data = self.response_builder.build_blogger_sentiment(raw_data, ticker)
             
-            # Create database record
+            # Calculate total from notebook-style fields
+            total = (parsed_data.get("bullish") or 0) + (parsed_data.get("bearish") or 0) + (parsed_data.get("neutral") or 0)
+            
+            # Create database record - map notebook-style fields to legacy database fields
             db_record = BloggerSentiment(
                 ticker=parsed_data["ticker"],
-                timestamp=parsed_data["timestamp"],
-                blogger_sentiment=parsed_data["blogger_sentiment"],
-                sentiment_score=parsed_data["sentiment_score"],
-                total_articles=parsed_data["total_articles"],
-                bullish_articles=parsed_data["bullish_articles"],
-                bearish_articles=parsed_data["bearish_articles"],
-                neutral_articles=parsed_data["neutral_articles"],
-                bullish_percent=parsed_data["bullish_percent"],
-                bearish_percent=parsed_data["bearish_percent"],
-                avg_blogger_accuracy=parsed_data["avg_blogger_accuracy"],
-                top_blogger_opinion=parsed_data["top_blogger_opinion"],
-                sentiment_change_1d=parsed_data["sentiment_change_1d"],
-                sentiment_change_1w=parsed_data["sentiment_change_1w"],
-                sentiment_change_1m=parsed_data["sentiment_change_1m"],
-                source=parsed_data["source"],
-                raw_data=parsed_data["raw_data"]
+                timestamp=get_utc_now(),
+                blogger_sentiment=None,  # Would need to compute from bullish/bearish counts
+                sentiment_score=parsed_data.get("score"),
+                total_articles=total,
+                bullish_articles=parsed_data.get("bullish") or 0,
+                bearish_articles=parsed_data.get("bearish") or 0,
+                neutral_articles=parsed_data.get("neutral") or 0,
+                bullish_percent=(parsed_data.get("bullish") or 0) / total * 100 if total > 0 else None,
+                bearish_percent=(parsed_data.get("bearish") or 0) / total * 100 if total > 0 else None,
+                avg_blogger_accuracy=parsed_data.get("avg"),
+                top_blogger_opinion=None,  # Not available in notebook-style response
+                sentiment_change_1d=None,  # Not available in notebook-style response
+                sentiment_change_1w=None,  # Not available in notebook-style response
+                sentiment_change_1m=None,  # Not available in notebook-style response
+                source="tipranks",
+                raw_data=raw_data
             )
             
             db.add(db_record)
@@ -612,51 +615,52 @@ class DataCollectionService:
                 )
                 return {"status": "error", "message": "No data received", "records": 0}
             
-            # Parse response for daily timeframe by default
-            parsed_data = self.response_builder.build_technical_indicators(
-                raw_data, ticker, TimeframeType.ONE_DAY
-            )
+            # Parse response using notebook-style method
+            # Note: build_technical_summaries_dataframe returns a list of category scores, 
+            # not individual indicator values. We'll store the raw data for now.
+            summaries = self.response_builder.build_technical_summaries_dataframe(raw_data)
             
-            # Create database record
+            # Create database record with minimal data - technical indicators
+            # are not directly available in the notebook-style response
             db_record = TechnicalIndicator(
-                ticker=parsed_data["ticker"],
-                timestamp=parsed_data["timestamp"],
-                timeframe=parsed_data["timeframe"],
-                open_price=parsed_data["open_price"],
-                high_price=parsed_data["high_price"],
-                low_price=parsed_data["low_price"],
-                close_price=parsed_data["close_price"],
-                volume=parsed_data["volume"],
-                sma_20=parsed_data["sma_20"],
-                sma_50=parsed_data["sma_50"],
-                sma_200=parsed_data["sma_200"],
-                ema_12=parsed_data["ema_12"],
-                ema_26=parsed_data["ema_26"],
-                rsi_14=parsed_data["rsi_14"],
-                stoch_k=parsed_data["stoch_k"],
-                stoch_d=parsed_data["stoch_d"],
-                cci=parsed_data["cci"],
-                williams_r=parsed_data["williams_r"],
-                macd=parsed_data["macd"],
-                macd_signal=parsed_data["macd_signal"],
-                macd_histogram=parsed_data["macd_histogram"],
-                adx=parsed_data["adx"],
-                plus_di=parsed_data["plus_di"],
-                minus_di=parsed_data["minus_di"],
-                atr=parsed_data["atr"],
-                bollinger_upper=parsed_data["bollinger_upper"],
-                bollinger_middle=parsed_data["bollinger_middle"],
-                bollinger_lower=parsed_data["bollinger_lower"],
-                support_1=parsed_data["support_1"],
-                support_2=parsed_data["support_2"],
-                resistance_1=parsed_data["resistance_1"],
-                resistance_2=parsed_data["resistance_2"],
-                pivot_point=parsed_data["pivot_point"],
-                oscillator_signal=parsed_data["oscillator_signal"],
-                moving_avg_signal=parsed_data["moving_avg_signal"],
-                overall_signal=parsed_data["overall_signal"],
-                source=parsed_data["source"],
-                raw_data=parsed_data["raw_data"]
+                ticker=ticker,
+                timestamp=get_utc_now(),
+                timeframe=TimeframeType.ONE_DAY,
+                open_price=None,
+                high_price=None,
+                low_price=None,
+                close_price=None,
+                volume=None,
+                sma_20=None,
+                sma_50=None,
+                sma_200=None,
+                ema_12=None,
+                ema_26=None,
+                rsi_14=None,
+                stoch_k=None,
+                stoch_d=None,
+                cci=None,
+                williams_r=None,
+                macd=None,
+                macd_signal=None,
+                macd_histogram=None,
+                adx=None,
+                plus_di=None,
+                minus_di=None,
+                atr=None,
+                bollinger_upper=None,
+                bollinger_middle=None,
+                bollinger_lower=None,
+                support_1=None,
+                support_2=None,
+                resistance_1=None,
+                resistance_2=None,
+                pivot_point=None,
+                oscillator_signal=None,
+                moving_avg_signal=None,
+                overall_signal=None,
+                source="trading_central",
+                raw_data=raw_data
             )
             
             db.add(db_record)
@@ -723,33 +727,31 @@ class DataCollectionService:
                 )
                 return {"status": "error", "message": "No data received", "records": 0}
             
-            # Parse response - may return multiple records
-            parsed_records = self.response_builder.build_target_prices(raw_data, ticker)
+            # Parse response using notebook-style method
+            parsed_data = self.response_builder.build_target_price(raw_data, ticker)
             
-            records_added = 0
-            for parsed_data in parsed_records:
-                # Create database record
-                db_record = TargetPrice(
-                    ticker=parsed_data["ticker"],
-                    timestamp=parsed_data["timestamp"],
-                    analyst_name=parsed_data["analyst_name"],
-                    analyst_firm=parsed_data["analyst_firm"],
-                    target_price=parsed_data["target_price"],
-                    previous_target=parsed_data["previous_target"],
-                    target_change=parsed_data["target_change"],
-                    target_change_pct=parsed_data["target_change_pct"],
-                    rating=parsed_data["rating"],
-                    previous_rating=parsed_data["previous_rating"],
-                    rating_changed=parsed_data["rating_changed"],
-                    current_price_at_rating=parsed_data["current_price_at_rating"],
-                    upside_to_target=parsed_data["upside_to_target"],
-                    analyst_accuracy_score=parsed_data["analyst_accuracy_score"],
-                    rating_date=parsed_data["rating_date"],
-                    source=parsed_data["source"],
-                    raw_data=parsed_data["raw_data"]
-                )
-                db.add(db_record)
-                records_added += 1
+            # Create a single database record (notebook-style returns single dict, not list)
+            db_record = TargetPrice(
+                ticker=parsed_data["ticker"],
+                timestamp=get_utc_now(),
+                analyst_name=None,  # Not available in notebook-style response
+                analyst_firm=None,  # Not available in notebook-style response
+                target_price=parsed_data.get("target_price"),
+                previous_target=None,  # Not available in notebook-style response
+                target_change=None,  # Not available in notebook-style response
+                target_change_pct=None,  # Not available in notebook-style response
+                rating=None,  # Not available in notebook-style response
+                previous_rating=None,  # Not available in notebook-style response
+                rating_changed=False,  # Not available in notebook-style response
+                current_price_at_rating=parsed_data.get("close_price"),
+                upside_to_target=None,  # Not available in notebook-style response
+                analyst_accuracy_score=None,  # Not available in notebook-style response
+                rating_date=None,  # Not available in notebook-style response
+                source="trading_central",
+                raw_data=raw_data
+            )
+            db.add(db_record)
+            records_added = 1
             
             db.commit()
             
