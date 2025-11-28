@@ -2,7 +2,7 @@
 Application Configuration
 """
 from dataclasses import dataclass
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List, Dict, Optional
 from functools import lru_cache
 
@@ -103,9 +103,7 @@ class Settings(BaseSettings):
         """Get list of CORS origins"""
         return [o.strip() for o in self.CORS_ORIGINS.split(',')]
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
 
 
 @lru_cache()
