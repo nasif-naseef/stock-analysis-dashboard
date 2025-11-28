@@ -114,33 +114,48 @@ class ResponseBuilder:
             if isinstance(raw_data, list):
                 raw_data = raw_data[0] if raw_data else {}
             
-            consensus = raw_data.get("consensus", {})
-            price_target = raw_data.get("priceTarget", {})
+            # Fix: Use correct field names from TipRanks API
+            # Primary: analystConsensus, analystPriceTarget (TipRanks format)
+            # Fallback: consensus, priceTarget (legacy format)
+            consensus = raw_data.get("analystConsensus", {}) or raw_data.get("consensus", {}) or {}
+            price_target = raw_data.get("analystPriceTarget", {}) or raw_data.get("priceTarget", {}) or {}
+            prices = raw_data.get("prices", [])
             
-            # Extract rating counts
-            buy = safe_int(raw_data.get("buy", 0)) or 0
-            hold = safe_int(raw_data.get("hold", 0)) or 0
-            sell = safe_int(raw_data.get("sell", 0)) or 0
+            # Extract rating counts from analystConsensus first, then fall back to top-level
+            buy = safe_int(consensus.get("buy", 0)) or safe_int(raw_data.get("buy", 0)) or 0
+            hold = safe_int(consensus.get("hold", 0)) or safe_int(raw_data.get("hold", 0)) or 0
+            sell = safe_int(consensus.get("sell", 0)) or safe_int(raw_data.get("sell", 0)) or 0
             
-            # Strong buy/sell might be separate
+            # Strong buy/sell might be separate (not in TipRanks analystConsensus, but check top-level)
             strong_buy = safe_int(raw_data.get("strongBuy", 0)) or 0
             strong_sell = safe_int(raw_data.get("strongSell", 0)) or 0
             
-            total = buy + hold + sell + strong_buy + strong_sell
+            # Total analysts - use numberOfAnalystRatings from consensus if available
+            total = safe_int(consensus.get("numberOfAnalystRatings", 0)) or (buy + hold + sell + strong_buy + strong_sell)
             
-            # Price targets
+            # Price targets from analystPriceTarget
             avg_target = safe_float(price_target.get("average"))
             high_target = safe_float(price_target.get("high"))
             low_target = safe_float(price_target.get("low"))
-            current = safe_float(raw_data.get("currentPrice"))
+            
+            # Get current price - try from prices array first, then fall back to currentPrice
+            current = None
+            if prices and len(prices) > 0:
+                # Get the most recent price (last item in prices array)
+                current = safe_float(prices[-1].get("p"))
+            if current is None:
+                current = safe_float(raw_data.get("currentPrice"))
             
             # Calculate upside potential
             upside = None
             if avg_target and current and current > 0:
                 upside = ((avg_target - current) / current) * 100
             
-            # Consensus score
-            consensus_score = safe_float(consensus.get("rating"))
+            # Consensus score - use consensusRating from analystConsensus if available
+            consensus_score = safe_float(consensus.get("consensusRating")) or safe_float(consensus.get("rating"))
+            
+            # Consensus text (e.g., "Moderate Buy")
+            consensus_text = consensus.get("consensus")
             
             return {
                 "ticker": ticker,
@@ -158,6 +173,7 @@ class ResponseBuilder:
                     consensus_score
                 ),
                 "consensus_score": consensus_score,
+                "consensus_text": consensus_text,
                 "avg_price_target": avg_target,
                 "high_price_target": high_target,
                 "low_price_target": low_target,
