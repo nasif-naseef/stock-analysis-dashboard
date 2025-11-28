@@ -153,7 +153,7 @@ export default function TechnicalSummaryCard({ data }) {
                 justifyContent="space-between" 
                 alignItems="center"
                 py={1}
-                borderBottom={index < summaries.length - 1 ? 1 : 0}
+                borderBottom={index < Math.min(summaries.length, 6) - 1 ? 1 : 0}
                 borderColor="grey.200"
               >
                 <Typography variant="body2">

@@ -112,7 +112,7 @@ export default function ChartEventsCard({ data }) {
                     )}
                   </Box>
                 </ListItem>
-                {index < events.length - 1 && index < 4 && <Divider />}
+                {index < Math.min(events.length - 1, 4) && <Divider />}
               </React.Fragment>
             ))}
           </List>

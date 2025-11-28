@@ -9,7 +9,7 @@ import logging
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 
-from app.utils.helpers import safe_get, safe_float, safe_int, get_utc_now
+from app.utils.helpers import safe_float, safe_int, get_utc_now
 
 logger = logging.getLogger(__name__)
 
