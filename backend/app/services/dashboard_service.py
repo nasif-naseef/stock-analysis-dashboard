@@ -526,7 +526,7 @@ class DashboardService:
 
         successful_logs = db.query(func.count(DataCollectionLog.id)).filter(
             DataCollectionLog.timestamp >= cutoff_time,
-            DataCollectionLog.success is True
+            DataCollectionLog.success == True
         ).scalar() or 0
 
         failed_logs = total_logs - successful_logs
@@ -534,7 +534,7 @@ class DashboardService:
         # Get records collected
         total_records = db.query(func.sum(DataCollectionLog.records_collected)).filter(
             DataCollectionLog.timestamp >= cutoff_time,
-            DataCollectionLog.success is True
+            DataCollectionLog.success == True
         ).scalar() or 0
 
         # Get latest collection per data type
@@ -546,7 +546,7 @@ class DashboardService:
         for data_type in data_types:
             latest = db.query(DataCollectionLog).filter(
                 DataCollectionLog.data_type == data_type,
-                DataCollectionLog.success is True
+                DataCollectionLog.success == True
             ).order_by(desc(DataCollectionLog.timestamp)).first()
 
             if latest:
