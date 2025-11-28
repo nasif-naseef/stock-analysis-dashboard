@@ -30,14 +30,14 @@ const extractRatings = (data) => {
   
   // Get current price from prices array or from parsed data
   let currentPrice = data.current_price;
-  if (currentPrice == null && prices.length > 0) {
+  if ((currentPrice === null || currentPrice === undefined) && prices.length > 0) {
     currentPrice = prices[prices.length - 1]?.p;
   }
   
   // Calculate upside potential if not available
   const avgPriceTarget = data.avg_price_target ?? priceTarget.average;
   let upsidePotential = data.upside_potential;
-  if (upsidePotential == null && avgPriceTarget && currentPrice && currentPrice > 0) {
+  if ((upsidePotential === null || upsidePotential === undefined) && avgPriceTarget && currentPrice && currentPrice > 0) {
     upsidePotential = ((avgPriceTarget - currentPrice) / currentPrice) * 100;
   }
   
@@ -154,7 +154,7 @@ export default function AnalystRatings() {
           <Grid item xs={12} sm={6} md={3}>
             <DataCard 
               title="Upside Potential" 
-              value={ratings.upside_potential != null ? `${ratings.upside_potential.toFixed(2)}%` : 'N/A'}
+              value={(ratings.upside_potential !== null && ratings.upside_potential !== undefined) ? `${ratings.upside_potential.toFixed(2)}%` : 'N/A'}
             />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
