@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -11,21 +11,31 @@ const api = axios.create({
 export const adminApi = {
   // Ticker endpoints
   getTickers: (includeInactive = false) => 
-    api.get(`/api/config/tickers?include_inactive=${includeInactive}`),
-  getTicker: (symbol) => api.get(`/api/config/tickers/${symbol}`),
-  createTicker: (data) => api.post('/api/config/tickers', data),
-  updateTicker: (symbol, data) => api.put(`/api/config/tickers/${symbol}`, data),
-  deleteTicker: (symbol) => api.delete(`/api/config/tickers/${symbol}`),
+    api.get(`/config/tickers${includeInactive ? '?include_inactive=true' : ''}`),
+  getTicker: (symbol) => 
+    api.get(`/config/tickers/${symbol}`),
+  createTicker: (data) => 
+    api.post('/config/tickers', data),
+  updateTicker: (symbol, data) => 
+    api.put(`/config/tickers/${symbol}`, data),
+  deleteTicker: (symbol) => 
+    api.delete(`/config/tickers/${symbol}`),
 
   // API Key endpoints
   getAPIKeys: (includeInactive = false) => 
-    api.get(`/api/config/api-keys?include_inactive=${includeInactive}`),
-  createAPIKey: (data) => api.post('/api/config/api-keys', data),
-  updateAPIKey: (serviceName, data) => api.put(`/api/config/api-keys/${serviceName}`, data),
+    api.get(`/config/api-keys${includeInactive ? '?include_inactive=true' : ''}`),
+  getAPIKey: (serviceName) => 
+    api.get(`/config/api-keys/${serviceName}`),
+  createAPIKey: (data) => 
+    api.post('/config/api-keys', data),
+  updateAPIKey: (serviceName, data) => 
+    api.put(`/config/api-keys/${serviceName}`, data),
 
   // Config management
-  getConfigStatus: () => api.get('/api/config/status'),
-  reloadConfig: () => api.post('/api/config/reload'),
+  getConfigStatus: () => 
+    api.get('/config/status'),
+  reloadConfig: () => 
+    api.post('/config/reload'),
 };
 
 export default adminApi;

@@ -14,7 +14,7 @@
     "react": "^18.2.0",
     "react-chartjs-2": "^5.2.0",
     "react-dom": "^18.2.0",
-    "react-query": "npm:@tanstack/react-query@^5.90.11",
+    "react-query": "^3.39.3",
     "react-router-dom": "^6.20.0",
     "recharts": "^2.10.3"
   },

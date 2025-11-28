@@ -1,198 +1,205 @@
 import React, { useState, useEffect } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
-  TextField, Button, Box, FormControl, InputLabel, Select,
-  MenuItem, FormControlLabel, Switch, CircularProgress
+  TextField, Button, FormControlLabel, Checkbox, MenuItem,
+  Box, CircularProgress
 } from '@mui/material';
-import adminApi from '../../api/adminApi';
 
-const EXCHANGES = ['NASDAQ', 'NYSE', 'AMEX', 'OTHER'];
+const EXCHANGES = ['NASDAQ', 'NYSE', 'AMEX', 'BATS', 'CBOE', 'OTHER'];
 
-export default function TickerForm({ open, onClose, onSuccess, ticker }) {
-  const isEditMode = !!ticker;
-  const queryClient = useQueryClient();
-
+export default function TickerForm({ 
+  open, 
+  onClose, 
+  onSubmit, 
+  ticker = null,
+  isSubmitting = false 
+}) {
+  const isEdit = !!ticker;
+  
   const [formData, setFormData] = useState({
-    symbol: '',
+    ticker: '',
     exchange: 'NASDAQ',
     tr_v4_id: '',
     tr_v3_id: '',
-    description: '',
-    active: true
+    is_active: true,
+    description: ''
   });
-
+  
   const [errors, setErrors] = useState({});
-
+  
   useEffect(() => {
     if (ticker) {
       setFormData({
-        symbol: ticker.symbol || '',
+        ticker: ticker.ticker || '',
         exchange: ticker.exchange || 'NASDAQ',
         tr_v4_id: ticker.tr_v4_id || '',
         tr_v3_id: ticker.tr_v3_id || '',
-        description: ticker.description || '',
-        active: ticker.active !== undefined ? ticker.active : true
+        is_active: ticker.is_active !== undefined ? ticker.is_active : true,
+        description: ticker.description || ''
       });
     } else {
       setFormData({
-        symbol: '',
+        ticker: '',
         exchange: 'NASDAQ',
         tr_v4_id: '',
         tr_v3_id: '',
-        description: '',
-        active: true
+        is_active: true,
+        description: ''
       });
     }
     setErrors({});
   }, [ticker, open]);
-
-  const createMutation = useMutation({
-    mutationFn: (data) => adminApi.createTicker(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tickers'] });
-      onSuccess('Ticker created successfully');
-      onClose();
-    },
-    onError: (error) => {
-      const message = error.response?.data?.detail || 'Failed to create ticker';
-      setErrors({ submit: message });
-    }
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: (data) => adminApi.updateTicker(ticker.symbol, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tickers'] });
-      onSuccess('Ticker updated successfully');
-      onClose();
-    },
-    onError: (error) => {
-      const message = error.response?.data?.detail || 'Failed to update ticker';
-      setErrors({ submit: message });
-    }
-  });
-
+  
   const handleChange = (e) => {
-    const { name, value, checked } = e.target;
-    if (name === 'active') {
-      setFormData(prev => ({ ...prev, active: checked }));
-    } else if (name === 'symbol') {
-      setFormData(prev => ({ ...prev, symbol: value.toUpperCase() }));
-    } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
-    }
+    const { name, value, checked, type } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+    
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
   };
-
+  
   const validate = () => {
     const newErrors = {};
-    if (!formData.symbol.trim()) {
-      newErrors.symbol = 'Symbol is required';
+    
+    if (!formData.ticker.trim()) {
+      newErrors.ticker = 'Symbol is required';
+    } else if (formData.ticker.length > 10) {
+      newErrors.ticker = 'Symbol must be 10 characters or less';
+    } else if (!/^[A-Za-z0-9]+$/.test(formData.ticker)) {
+      newErrors.ticker = 'Symbol must be alphanumeric';
     }
+    
+    if (!formData.exchange) {
+      newErrors.exchange = 'Exchange is required';
+    }
+    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
-
-  const handleSubmit = () => {
+  
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    
     if (!validate()) return;
-
+    
     const submitData = {
       ...formData,
-      symbol: formData.symbol.trim().toUpperCase(),
-      tr_v4_id: formData.tr_v4_id.trim() || null,
-      tr_v3_id: formData.tr_v3_id.trim() || null,
-      description: formData.description.trim() || null
+      ticker: formData.ticker.toUpperCase().trim(),
+      tr_v4_id: formData.tr_v4_id || null,
+      tr_v3_id: formData.tr_v3_id || null,
+      description: formData.description || null
     };
-
-    if (isEditMode) {
-      updateMutation.mutate(submitData);
-    } else {
-      createMutation.mutate(submitData);
-    }
+    
+    onSubmit(submitData);
   };
-
-  const isLoading = createMutation.isPending || updateMutation.isPending;
-
+  
+  const handleClose = () => {
+    setFormData({
+      ticker: '',
+      exchange: 'NASDAQ',
+      tr_v4_id: '',
+      tr_v3_id: '',
+      is_active: true,
+      description: ''
+    });
+    setErrors({});
+    onClose();
+  };
+  
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{isEditMode ? 'Edit Ticker' : 'Add New Ticker'}</DialogTitle>
-      <DialogContent>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-          <TextField
-            name="symbol"
-            label="Symbol"
-            value={formData.symbol}
-            onChange={handleChange}
-            error={!!errors.symbol}
-            helperText={errors.symbol}
-            required
-            disabled={isEditMode}
-            inputProps={{ style: { textTransform: 'uppercase' } }}
-          />
-          <FormControl fullWidth>
-            <InputLabel>Exchange</InputLabel>
-            <Select
+    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+      <form onSubmit={handleSubmit}>
+        <DialogTitle>{isEdit ? 'Edit Ticker' : 'Add New Ticker'}</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <TextField
+              name="ticker"
+              label="Symbol"
+              value={formData.ticker}
+              onChange={handleChange}
+              error={!!errors.ticker}
+              helperText={errors.ticker}
+              required
+              disabled={isEdit}
+              inputProps={{ maxLength: 10, style: { textTransform: 'uppercase' } }}
+              fullWidth
+            />
+            
+            <TextField
               name="exchange"
+              label="Exchange"
               value={formData.exchange}
               onChange={handleChange}
-              label="Exchange"
+              error={!!errors.exchange}
+              helperText={errors.exchange}
+              required
+              select
+              fullWidth
             >
-              {EXCHANGES.map((exchange) => (
-                <MenuItem key={exchange} value={exchange}>{exchange}</MenuItem>
+              {EXCHANGES.map(ex => (
+                <MenuItem key={ex} value={ex}>{ex}</MenuItem>
               ))}
-            </Select>
-          </FormControl>
-          <TextField
-            name="tr_v4_id"
-            label="TR V4 ID"
-            value={formData.tr_v4_id}
-            onChange={handleChange}
-          />
-          <TextField
-            name="tr_v3_id"
-            label="TR V3 ID"
-            value={formData.tr_v3_id}
-            onChange={handleChange}
-          />
-          <TextField
-            name="description"
-            label="Description"
-            value={formData.description}
-            onChange={handleChange}
-            multiline
-            rows={3}
-          />
-          <FormControlLabel
-            control={
-              <Switch
-                name="active"
-                checked={formData.active}
-                onChange={handleChange}
-              />
-            }
-            label="Active"
-          />
-          {errors.submit && (
-            <Box sx={{ color: 'error.main', fontSize: '0.875rem' }}>
-              {errors.submit}
-            </Box>
-          )}
-        </Box>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={isLoading}>Cancel</Button>
-        <Button 
-          onClick={handleSubmit} 
-          variant="contained" 
-          disabled={isLoading}
-          startIcon={isLoading ? <CircularProgress size={20} /> : null}
-        >
-          {isLoading ? 'Saving...' : 'Save'}
-        </Button>
-      </DialogActions>
+            </TextField>
+            
+            <TextField
+              name="tr_v4_id"
+              label="Trading Central V4 ID"
+              value={formData.tr_v4_id}
+              onChange={handleChange}
+              helperText="Optional identifier for Trading Central V4 API"
+              fullWidth
+            />
+            
+            <TextField
+              name="tr_v3_id"
+              label="Trading Central V3 ID"
+              value={formData.tr_v3_id}
+              onChange={handleChange}
+              helperText="Optional identifier for Trading Central V3 API"
+              fullWidth
+            />
+            
+            <TextField
+              name="description"
+              label="Description"
+              value={formData.description}
+              onChange={handleChange}
+              multiline
+              rows={2}
+              helperText="Optional description for this ticker"
+              fullWidth
+            />
+            
+            <FormControlLabel
+              control={
+                <Checkbox
+                  name="is_active"
+                  checked={formData.is_active}
+                  onChange={handleChange}
+                />
+              }
+              label="Active"
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleClose} disabled={isSubmitting}>
+            Cancel
+          </Button>
+          <Button 
+            type="submit" 
+            variant="contained" 
+            disabled={isSubmitting}
+            startIcon={isSubmitting ? <CircularProgress size={20} /> : null}
+          >
+            {isSubmitting ? 'Saving...' : (isEdit ? 'Update' : 'Create')}
+          </Button>
+        </DialogActions>
+      </form>
     </Dialog>
   );
 }

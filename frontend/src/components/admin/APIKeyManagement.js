@@ -1,146 +1,161 @@
 import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Box, Paper, Typography, Button, IconButton, Table, TableBody,
-  TableCell, TableContainer, TableHead, TableRow, Switch
+  Paper, Typography, Box, Button, Table, TableBody, TableCell,
+  TableContainer, TableHead, TableRow, IconButton, Chip, Switch,
+  CircularProgress, Tooltip
 } from '@mui/material';
-import { Add, Edit } from '@mui/icons-material';
-import adminApi from '../../api/adminApi';
+import {
+  Add as AddIcon, Edit as EditIcon, Refresh as RefreshIcon,
+  Key as KeyIcon
+} from '@mui/icons-material';
 import APIKeyForm from './APIKeyForm';
-import LoadingSpinner from '../LoadingSpinner';
-import ErrorMessage from '../ErrorMessage';
 
-const maskKey = (key) => {
-  if (!key || key.length < 8) return '********';
-  return key.substring(0, 4) + '*'.repeat(Math.min(15, key.length - 8)) + key.substring(key.length - 4);
-};
-
-export default function APIKeyManagement({ onNotify }) {
-  const queryClient = useQueryClient();
+export default function APIKeyManagement({
+  apiKeys,
+  isLoading,
+  onRefresh,
+  onCreate,
+  onUpdate,
+  isCreating,
+  isUpdating
+}) {
   const [formOpen, setFormOpen] = useState(false);
-  const [selectedApiKey, setSelectedApiKey] = useState(null);
-
-  const { data: apiKeysData, isLoading, error, refetch } = useQuery({
-    queryKey: ['apiKeys'],
-    queryFn: () => adminApi.getAPIKeys(true).then(res => res.data)
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ serviceName, data }) => adminApi.updateAPIKey(serviceName, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['apiKeys'] });
-      onNotify('API key status updated successfully', 'success');
-    },
-    onError: (error) => {
-      const message = error.response?.data?.detail || 'Failed to update API key';
-      onNotify(message, 'error');
+  const [editApiKey, setEditApiKey] = useState(null);
+  
+  const handleAdd = () => {
+    setEditApiKey(null);
+    setFormOpen(true);
+  };
+  
+  const handleEdit = (apiKey) => {
+    setEditApiKey(apiKey);
+    setFormOpen(true);
+  };
+  
+  const handleFormSubmit = async (data) => {
+    if (editApiKey) {
+      await onUpdate(editApiKey.service_name, data);
+    } else {
+      await onCreate(data);
     }
-  });
-
-  const handleAddClick = () => {
-    setSelectedApiKey(null);
-    setFormOpen(true);
+    setFormOpen(false);
+    setEditApiKey(null);
   };
-
-  const handleEditClick = (apiKey) => {
-    setSelectedApiKey(apiKey);
-    setFormOpen(true);
+  
+  const handleToggleActive = async (apiKey) => {
+    await onUpdate(apiKey.service_name, { is_active: !apiKey.is_active });
   };
-
-  const handleToggleActive = (apiKey) => {
-    updateMutation.mutate({
-      serviceName: apiKey.service_name,
-      data: { ...apiKey, active: !apiKey.active }
-    });
+  
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '-';
+    return new Date(dateStr).toLocaleString();
   };
-
-  const handleFormSuccess = (message) => {
-    onNotify(message, 'success');
-  };
-
-  if (isLoading) return <LoadingSpinner message="Loading API keys..." />;
-  if (error) return <ErrorMessage message="Failed to load API keys" onRetry={refetch} />;
-
-  const apiKeys = apiKeysData?.api_keys || [];
-
+  
   return (
-    <Box>
+    <Paper sx={{ p: 2 }}>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h6">API Key Management</Typography>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={handleAddClick}
-        >
-          Add API Key
-        </Button>
+        <Box display="flex" gap={1}>
+          <Tooltip title="Refresh">
+            <IconButton onClick={onRefresh} size="small">
+              <RefreshIcon />
+            </IconButton>
+          </Tooltip>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleAdd}
+            size="small"
+          >
+            Add API Key
+          </Button>
+        </Box>
       </Box>
-
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Service Name</TableCell>
-              <TableCell>Key (Masked)</TableCell>
-              <TableCell>Description</TableCell>
-              <TableCell>Active</TableCell>
-              <TableCell>Last Updated</TableCell>
-              <TableCell align="right">Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {apiKeys.length === 0 ? (
+      
+      {isLoading ? (
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
+          <CircularProgress />
+        </Box>
+      ) : (
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
               <TableRow>
-                <TableCell colSpan={6} align="center">
-                  <Typography color="textSecondary">No API keys configured</Typography>
-                </TableCell>
+                <TableCell>Service Name</TableCell>
+                <TableCell>Key Value</TableCell>
+                <TableCell>Description</TableCell>
+                <TableCell>Active</TableCell>
+                <TableCell>Last Updated</TableCell>
+                <TableCell align="right">Actions</TableCell>
               </TableRow>
-            ) : (
-              apiKeys.map((apiKey) => (
-                <TableRow key={apiKey.service_name}>
-                  <TableCell>
-                    <Typography fontWeight="bold">{apiKey.service_name}</Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography sx={{ fontFamily: 'monospace' }}>
-                      {maskKey(apiKey.masked_key || apiKey.api_key)}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>{apiKey.description || 'N/A'}</TableCell>
-                  <TableCell>
-                    <Switch
-                      checked={apiKey.active}
-                      onChange={() => handleToggleActive(apiKey)}
-                      disabled={updateMutation.isPending}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    {apiKey.updated_at 
-                      ? new Date(apiKey.updated_at).toLocaleString() 
-                      : 'N/A'}
-                  </TableCell>
-                  <TableCell align="right">
-                    <IconButton
-                      size="small"
-                      onClick={() => handleEditClick(apiKey)}
-                      title="Edit API key"
-                    >
-                      <Edit />
-                    </IconButton>
+            </TableHead>
+            <TableBody>
+              {apiKeys?.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} align="center">
+                    <Typography color="textSecondary">No API keys configured</Typography>
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
-
+              ) : (
+                apiKeys?.map((apiKey) => (
+                  <TableRow key={apiKey.service_name} hover>
+                    <TableCell>
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <KeyIcon fontSize="small" color="action" />
+                        <Typography variant="body2" fontFamily="monospace">
+                          {apiKey.service_name}
+                        </Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <Chip 
+                        label={apiKey.api_key_masked} 
+                        size="small" 
+                        variant="outlined"
+                        sx={{ fontFamily: 'monospace' }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {apiKey.description || <Typography color="textSecondary" variant="body2">-</Typography>}
+                    </TableCell>
+                    <TableCell>
+                      <Switch
+                        size="small"
+                        checked={apiKey.is_active}
+                        onChange={() => handleToggleActive(apiKey)}
+                        disabled={isUpdating}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="textSecondary">
+                        {formatDate(apiKey.updated_at)}
+                      </Typography>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Tooltip title="Edit">
+                        <IconButton size="small" onClick={() => handleEdit(apiKey)}>
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+      
       <APIKeyForm
         open={formOpen}
-        onClose={() => setFormOpen(false)}
-        onSuccess={handleFormSuccess}
-        apiKey={selectedApiKey}
+        onClose={() => {
+          setFormOpen(false);
+          setEditApiKey(null);
+        }}
+        onSubmit={handleFormSubmit}
+        apiKey={editApiKey}
+        isSubmitting={isCreating || isUpdating}
       />
-    </Box>
+    </Paper>
   );
 }

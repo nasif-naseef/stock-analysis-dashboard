@@ -1,196 +1,191 @@
 import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Box, Paper, Typography, Button, IconButton, Table, TableBody,
-  TableCell, TableContainer, TableHead, TableRow, Switch,
+  Paper, Typography, Box, Button, Table, TableBody, TableCell,
+  TableContainer, TableHead, TableRow, IconButton, Chip, Switch,
   Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions,
-  CircularProgress
+  CircularProgress, Tooltip
 } from '@mui/material';
-import { Add, Edit, Delete } from '@mui/icons-material';
-import adminApi from '../../api/adminApi';
+import {
+  Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon,
+  Refresh as RefreshIcon
+} from '@mui/icons-material';
 import TickerForm from './TickerForm';
-import LoadingSpinner from '../LoadingSpinner';
-import ErrorMessage from '../ErrorMessage';
 
-export default function TickerManagement({ onNotify }) {
-  const queryClient = useQueryClient();
+export default function TickerManagement({
+  tickers,
+  isLoading,
+  onRefresh,
+  onCreate,
+  onUpdate,
+  onDelete,
+  isCreating,
+  isUpdating,
+  isDeleting
+}) {
   const [formOpen, setFormOpen] = useState(false);
-  const [selectedTicker, setSelectedTicker] = useState(null);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [editTicker, setEditTicker] = useState(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [tickerToDelete, setTickerToDelete] = useState(null);
-
-  const { data: tickersData, isLoading, error, refetch } = useQuery({
-    queryKey: ['tickers'],
-    queryFn: () => adminApi.getTickers(true).then(res => res.data)
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (symbol) => adminApi.deleteTicker(symbol),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tickers'] });
-      onNotify('Ticker deleted successfully', 'success');
-      setDeleteDialogOpen(false);
-      setTickerToDelete(null);
-    },
-    onError: (error) => {
-      const message = error.response?.data?.detail || 'Failed to delete ticker';
-      onNotify(message, 'error');
-    }
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ symbol, data }) => adminApi.updateTicker(symbol, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tickers'] });
-      onNotify('Ticker status updated successfully', 'success');
-    },
-    onError: (error) => {
-      const message = error.response?.data?.detail || 'Failed to update ticker';
-      onNotify(message, 'error');
-    }
-  });
-
-  const handleAddClick = () => {
-    setSelectedTicker(null);
+  
+  const handleAdd = () => {
+    setEditTicker(null);
     setFormOpen(true);
   };
-
-  const handleEditClick = (ticker) => {
-    setSelectedTicker(ticker);
+  
+  const handleEdit = (ticker) => {
+    setEditTicker(ticker);
     setFormOpen(true);
   };
-
+  
+  const handleFormSubmit = async (data) => {
+    if (editTicker) {
+      await onUpdate(editTicker.ticker, data);
+    } else {
+      await onCreate(data);
+    }
+    setFormOpen(false);
+    setEditTicker(null);
+  };
+  
   const handleDeleteClick = (ticker) => {
     setTickerToDelete(ticker);
-    setDeleteDialogOpen(true);
+    setDeleteConfirmOpen(true);
   };
-
-  const handleDeleteConfirm = () => {
+  
+  const handleDeleteConfirm = async () => {
     if (tickerToDelete) {
-      deleteMutation.mutate(tickerToDelete.symbol);
+      await onDelete(tickerToDelete.ticker);
     }
+    setDeleteConfirmOpen(false);
+    setTickerToDelete(null);
   };
-
-  const handleToggleActive = (ticker) => {
-    updateMutation.mutate({
-      symbol: ticker.symbol,
-      data: { ...ticker, active: !ticker.active }
-    });
+  
+  const handleToggleActive = async (ticker) => {
+    await onUpdate(ticker.ticker, { is_active: !ticker.is_active });
   };
-
-  const handleFormSuccess = (message) => {
-    onNotify(message, 'success');
-  };
-
-  if (isLoading) return <LoadingSpinner message="Loading tickers..." />;
-  if (error) return <ErrorMessage message="Failed to load tickers" onRetry={refetch} />;
-
-  const tickers = tickersData?.tickers || [];
-
+  
   return (
-    <Box>
+    <Paper sx={{ p: 2, mb: 3 }}>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h6">Ticker Management</Typography>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={handleAddClick}
-        >
-          Add Ticker
-        </Button>
+        <Box display="flex" gap={1}>
+          <Tooltip title="Refresh">
+            <IconButton onClick={onRefresh} size="small">
+              <RefreshIcon />
+            </IconButton>
+          </Tooltip>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleAdd}
+            size="small"
+          >
+            Add Ticker
+          </Button>
+        </Box>
       </Box>
-
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Symbol</TableCell>
-              <TableCell>Exchange</TableCell>
-              <TableCell>TR V4 ID</TableCell>
-              <TableCell>TR V3 ID</TableCell>
-              <TableCell>Active</TableCell>
-              <TableCell align="right">Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {tickers.length === 0 ? (
+      
+      {isLoading ? (
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
+          <CircularProgress />
+        </Box>
+      ) : (
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
               <TableRow>
-                <TableCell colSpan={6} align="center">
-                  <Typography color="textSecondary">No tickers configured</Typography>
-                </TableCell>
+                <TableCell>Symbol</TableCell>
+                <TableCell>Exchange</TableCell>
+                <TableCell>TC V4 ID</TableCell>
+                <TableCell>TC V3 ID</TableCell>
+                <TableCell>Active</TableCell>
+                <TableCell align="right">Actions</TableCell>
               </TableRow>
-            ) : (
-              tickers.map((ticker) => (
-                <TableRow key={ticker.symbol}>
-                  <TableCell>
-                    <Typography fontWeight="bold">{ticker.symbol}</Typography>
-                  </TableCell>
-                  <TableCell>{ticker.exchange || 'N/A'}</TableCell>
-                  <TableCell>{ticker.tr_v4_id || 'N/A'}</TableCell>
-                  <TableCell>{ticker.tr_v3_id || 'N/A'}</TableCell>
-                  <TableCell>
-                    <Switch
-                      checked={ticker.active}
-                      onChange={() => handleToggleActive(ticker)}
-                      disabled={updateMutation.isPending}
-                    />
-                  </TableCell>
-                  <TableCell align="right">
-                    <IconButton
-                      size="small"
-                      onClick={() => handleEditClick(ticker)}
-                      title="Edit ticker"
-                    >
-                      <Edit />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      onClick={() => handleDeleteClick(ticker)}
-                      color="error"
-                      title="Delete ticker"
-                    >
-                      <Delete />
-                    </IconButton>
+            </TableHead>
+            <TableBody>
+              {tickers?.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} align="center">
+                    <Typography color="textSecondary">No tickers configured</Typography>
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
-
+              ) : (
+                tickers?.map((ticker) => (
+                  <TableRow key={ticker.ticker} hover>
+                    <TableCell>
+                      <Chip label={ticker.ticker} size="small" color="primary" />
+                    </TableCell>
+                    <TableCell>{ticker.exchange}</TableCell>
+                    <TableCell>
+                      {ticker.tr_v4_id || <Typography color="textSecondary" variant="body2">-</Typography>}
+                    </TableCell>
+                    <TableCell>
+                      {ticker.tr_v3_id || <Typography color="textSecondary" variant="body2">-</Typography>}
+                    </TableCell>
+                    <TableCell>
+                      <Switch
+                        size="small"
+                        checked={ticker.is_active}
+                        onChange={() => handleToggleActive(ticker)}
+                        disabled={isUpdating}
+                      />
+                    </TableCell>
+                    <TableCell align="right">
+                      <Tooltip title="Edit">
+                        <IconButton size="small" onClick={() => handleEdit(ticker)}>
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Delete">
+                        <IconButton 
+                          size="small" 
+                          onClick={() => handleDeleteClick(ticker)}
+                          color="error"
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+      
       <TickerForm
         open={formOpen}
-        onClose={() => setFormOpen(false)}
-        onSuccess={handleFormSuccess}
-        ticker={selectedTicker}
+        onClose={() => {
+          setFormOpen(false);
+          setEditTicker(null);
+        }}
+        onSubmit={handleFormSubmit}
+        ticker={editTicker}
+        isSubmitting={isCreating || isUpdating}
       />
-
-      <Dialog
-        open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
-      >
+      
+      <Dialog open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)}>
         <DialogTitle>Confirm Delete</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            Are you sure you want to delete the ticker "{tickerToDelete?.symbol}"?
+            Are you sure you want to delete ticker <strong>{tickerToDelete?.ticker}</strong>?
             This action cannot be undone.
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)} disabled={deleteMutation.isPending}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleDeleteConfirm}
-            color="error"
-            disabled={deleteMutation.isPending}
-            startIcon={deleteMutation.isPending ? <CircularProgress size={20} /> : null}
+          <Button onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
+          <Button 
+            onClick={handleDeleteConfirm} 
+            color="error" 
+            variant="contained"
+            disabled={isDeleting}
+            startIcon={isDeleting ? <CircularProgress size={20} /> : null}
           >
-            {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+            {isDeleting ? 'Deleting...' : 'Delete'}
           </Button>
         </DialogActions>
       </Dialog>
-    </Box>
+    </Paper>
   );
 }

@@ -7,7 +7,7 @@ import {
 import {
   Menu as MenuIcon, Dashboard as DashboardIcon,
   TrendingUp, Newspaper, Analytics, AccountBalance,
-  People, ShowChart, Compare, Settings
+  People, ShowChart, Compare, AdminPanelSettings
 } from '@mui/icons-material';
 
 const drawerWidth = 240;
@@ -21,7 +21,7 @@ const menuItems = [
   { text: 'Crowd Wisdom', icon: <People />, path: '/crowd' },
   { text: 'Technical', icon: <ShowChart />, path: '/technical' },
   { text: 'Comparison', icon: <Compare />, path: '/comparison' },
-  { text: 'Admin', icon: <Settings />, path: '/admin' },
+  { text: 'Admin', icon: <AdminPanelSettings />, path: '/admin' },
 ];
 
 export default function Layout({ children }) {
