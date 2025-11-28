@@ -722,20 +722,22 @@ class StockDataService:
     def get_stop_loss(
         self,
         ticker: Optional[str] = None,
-        comprehensive: bool = False,
         stop_type: str = 'Volatility-Based',
         direction: str = 'Below (Long Position)',
-        tightness: str = 'Medium'
+        tightness: str = 'Medium',
+        priceperiod: str = 'daily',
+        comprehensive: bool = False
     ) -> Dict[str, Any]:
         """
         Get stop loss recommendations.
         
         Args:
             ticker: Optional ticker. If None, fetches for all configured tickers.
-            comprehensive: Whether to get comprehensive stop loss data.
             stop_type: Type of stop loss calculation.
             direction: Direction of stop (long/short).
             tightness: Tightness level.
+            priceperiod: Price period (daily, weekly, etc.)
+            comprehensive: Whether to get comprehensive stop loss data.
             
         Returns:
             Dictionary with stop loss data
@@ -752,7 +754,7 @@ class StockDataService:
                     results[t] = {"ticker": t, "error": "No Trading Central ID configured"}
                     continue
                 
-                raw_data = self.api_client.fetch_tc_stop_loss(tc_id)
+                raw_data = self.api_client.fetch_tc_stop_timeseries(tc_id)
                 if raw_data:
                     results[t] = self.response_builder.build_stop_loss(
                         raw_data, t, stop_type, direction, tightness
@@ -765,13 +767,14 @@ class StockDataService:
         
         return results if len(tickers) > 1 else results.get(tickers[0], {})
     
-    def get_chart_events(self, ticker: Optional[str] = None, active: bool = True) -> Dict[str, Any]:
+    def get_chart_events(self, ticker: Optional[str] = None, active: bool = True, priceperiod: str = 'daily') -> Dict[str, Any]:
         """
         Get chart events data.
         
         Args:
             ticker: Optional ticker. If None, fetches for all configured tickers.
             active: Whether to get active events only.
+            priceperiod: Price period (daily, weekly, etc.)
             
         Returns:
             Dictionary with chart events data
@@ -788,7 +791,7 @@ class StockDataService:
                     results[t] = {"ticker": t, "events": [], "error": "No Trading Central ID configured"}
                     continue
                 
-                raw_data = self.api_client.fetch_tc_chart_events(tc_id)
+                raw_data = self.api_client.fetch_tc_instrument_events(tc_id)
                 if raw_data:
                     events = self.response_builder.build_chart_events_dataframe(raw_data, t, active)
                     results[t] = {"ticker": t, "events": events, "is_active": active}
@@ -800,12 +803,13 @@ class StockDataService:
         
         return results if len(tickers) > 1 else results.get(tickers[0], {})
     
-    def get_chart_events_combined(self, ticker: Optional[str] = None) -> Dict[str, Any]:
+    def get_chart_events_combined(self, ticker: Optional[str] = None, priceperiod: str = 'daily') -> Dict[str, Any]:
         """
         Get combined chart events (active and historical).
         
         Args:
             ticker: Optional ticker. If None, fetches for all configured tickers.
+            priceperiod: Price period (daily, weekly, etc.)
             
         Returns:
             Dictionary with combined chart events data
@@ -814,8 +818,8 @@ class StockDataService:
         results = {}
         
         for t in tickers:
-            active_events = self.get_chart_events(t, active=True)
-            historical_events = self.get_chart_events(t, active=False)
+            active_events = self.get_chart_events(t, active=True, priceperiod=priceperiod)
+            historical_events = self.get_chart_events(t, active=False, priceperiod=priceperiod)
             
             results[t] = {
                 "ticker": t,

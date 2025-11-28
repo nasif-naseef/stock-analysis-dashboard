@@ -27,6 +27,7 @@ from app.api import (
     collection_router,
     dashboard_router,
     config_router,
+    stock_router,
 )
 
 # Configure logging
@@ -109,6 +110,7 @@ app.include_router(comparison_router)
 app.include_router(collection_router)
 app.include_router(dashboard_router)
 app.include_router(config_router)
+app.include_router(stock_router)
 
 
 @app.get("/")

@@ -276,6 +276,10 @@ class ResponseBuilder:
         """
         Build quantamental scores from Trading Central API response.
         
+        Handles the actual Trading Central API response format:
+        [{'entity': {...}, 'growth': 27, 'growthLabel': {...}, 'income': None, 
+          'momentum': 90, 'quality': 40, 'quantamental': 34, 'valuation': 8, ...}]
+        
         Args:
             raw_data: Raw API response
             ticker: Stock ticker symbol
@@ -284,36 +288,77 @@ class ResponseBuilder:
             Dictionary with parsed quantamental score fields
         """
         try:
-            # Handle list response
+            # Handle list response - API returns array with single item
             if isinstance(raw_data, list):
                 raw_data = raw_data[0] if raw_data else {}
             
-            scores = raw_data.get("scores", {})
-            fundamentals = raw_data.get("fundamentals", {})
-            valuation = raw_data.get("valuation", {})
-            ranking = raw_data.get("ranking", {})
+            raw_data = raw_data or {}
+            
+            # Extract entity info if available
+            entity = raw_data.get("entity", {}) or {}
+            
+            # Extract scores directly from top-level fields (actual API format)
+            # These are the direct score values: quantamental, growth, valuation, income, quality, momentum
+            overall = safe_int(raw_data.get("quantamental"))
+            growth = safe_int(raw_data.get("growth"))
+            valuation_score = safe_int(raw_data.get("valuation"))
+            income = safe_int(raw_data.get("income"))
+            quality = safe_int(raw_data.get("quality"))
+            momentum = safe_int(raw_data.get("momentum"))
+            
+            # Extract labels if available
+            quantamental_label = raw_data.get("quantamentalLabel", {}) or {}
+            growth_label = raw_data.get("growthLabel", {}) or {}
+            valuation_label = raw_data.get("valuationLabel", {}) or {}
+            income_label = raw_data.get("incomeLabel", {}) or {}
+            quality_label = raw_data.get("qualityLabel", {}) or {}
+            momentum_label = raw_data.get("momentumLabel", {}) or {}
             
             return {
                 "ticker": ticker,
                 "timestamp": get_utc_now(),
-                "overall_score": safe_float(scores.get("overall")),
-                "quality_score": safe_float(scores.get("quality")),
-                "value_score": safe_float(scores.get("value")),
-                "growth_score": safe_float(scores.get("growth")),
-                "momentum_score": safe_float(scores.get("momentum")),
-                "revenue_growth": safe_float(fundamentals.get("revenueGrowth")),
-                "earnings_growth": safe_float(fundamentals.get("earningsGrowth")),
-                "profit_margin": safe_float(fundamentals.get("profitMargin")),
-                "debt_to_equity": safe_float(fundamentals.get("debtToEquity")),
-                "return_on_equity": safe_float(fundamentals.get("returnOnEquity")),
-                "pe_ratio": safe_float(valuation.get("peRatio")),
-                "pb_ratio": safe_float(valuation.get("pbRatio")),
-                "ps_ratio": safe_float(valuation.get("psRatio")),
-                "peg_ratio": safe_float(valuation.get("pegRatio")),
-                "ev_ebitda": safe_float(valuation.get("evEbitda")),
-                "sector_rank": safe_int(ranking.get("sectorRank")),
-                "industry_rank": safe_int(ranking.get("industryRank")),
-                "overall_rank": safe_int(ranking.get("overallRank")),
+                # New notebook-style fields (direct scores)
+                "overall": overall,
+                "growth": growth,
+                "value": valuation_score,  # API uses 'valuation', we map to 'value'
+                "income": income,
+                "quality": quality,
+                "momentum": momentum,
+                # Legacy fields (map to float versions)
+                "overall_score": safe_float(overall),
+                "quality_score": safe_float(quality),
+                "value_score": safe_float(valuation_score),
+                "growth_score": safe_float(growth),
+                "momentum_score": safe_float(momentum),
+                # Label info
+                "quantamental_label": quantamental_label.get("name"),
+                "growth_label": growth_label.get("name"),
+                "valuation_label": valuation_label.get("name"),
+                "income_label": income_label.get("name"),
+                "quality_label": quality_label.get("name"),
+                "momentum_label": momentum_label.get("name"),
+                # Entity info
+                "symbol": entity.get("symbol"),
+                "name": entity.get("name"),
+                "exchange": entity.get("exchange"),
+                "sector": entity.get("sector"),
+                "isin": entity.get("isin"),
+                "instrument_id": entity.get("instrumentId"),
+                "entity_id": entity.get("entityId"),
+                # Legacy fields that may not be in this API format
+                "revenue_growth": None,
+                "earnings_growth": None,
+                "profit_margin": None,
+                "debt_to_equity": None,
+                "return_on_equity": None,
+                "pe_ratio": None,
+                "pb_ratio": None,
+                "ps_ratio": None,
+                "peg_ratio": None,
+                "ev_ebitda": None,
+                "sector_rank": None,
+                "industry_rank": None,
+                "overall_rank": None,
                 "source": "trading_central",
                 "raw_data": raw_data
             }

@@ -23,10 +23,18 @@ from app.utils.api_client import (
     RateLimiter,
 )
 from app.utils.data_processor import (
-    ResponseBuilder,
+    ResponseBuilder as DataProcessorResponseBuilder,
     DataFrameOptimizer,
     determine_sentiment,
     determine_rating,
+)
+from app.utils.response_builders import ResponseBuilder
+from app.utils.data_fetchers import (
+    BaseDataFetcher,
+    TipRanksDataFetcher,
+    TradingCentralDataFetcher,
+    tipranks_fetcher,
+    trading_central_fetcher,
 )
 
 __all__ = [
@@ -48,8 +56,16 @@ __all__ = [
     "SimpleCache",
     "RateLimiter",
     # Data Processor
-    "ResponseBuilder",
+    "DataProcessorResponseBuilder",
     "DataFrameOptimizer",
     "determine_sentiment",
     "determine_rating",
+    # Response Builders (new)
+    "ResponseBuilder",
+    # Data Fetchers (new)
+    "BaseDataFetcher",
+    "TipRanksDataFetcher",
+    "TradingCentralDataFetcher",
+    "tipranks_fetcher",
+    "trading_central_fetcher",
 ]

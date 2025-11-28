@@ -770,3 +770,58 @@ class StopLossResponse(BaseModel):
     stop_type: str = 'Volatility-Based'
     direction: str = 'Below (Long Position)'
     tightness: str = 'Medium'
+
+
+class ChartEventResponse(BaseModel):
+    """Schema for chart event API response matching notebook structure"""
+    ticker: str
+    event_id: Optional[str] = None
+    event_type: Optional[str] = None
+    event_name: Optional[str] = None
+    price_period: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    target_price: Optional[float] = None
+    start_price: Optional[float] = None
+    end_price: Optional[float] = None
+    is_active: bool = True
+
+
+class TechnicalSummaryResponse(BaseModel):
+    """Schema for technical summary API response matching notebook structure"""
+    symbol: str
+    name: Optional[str] = None
+    exchange: Optional[str] = None
+    isin: Optional[str] = None
+    instrumentId: Optional[str] = None
+    category: Optional[str] = None
+    recommendation: Optional[str] = None
+    signalStrength: Optional[float] = None
+
+
+class HistoricalAnalystConsensusItem(BaseModel):
+    """Schema for individual historical analyst consensus data point"""
+    date: Optional[str] = None
+    buy: Optional[int] = None
+    hold: Optional[int] = None
+    sell: Optional[int] = None
+    consensus: Optional[str] = None
+    priceTarget: Optional[float] = None
+
+
+class HistoricalAnalystConsensusResponse(BaseModel):
+    """Schema for historical analyst consensus API response"""
+    ticker: str
+    history: List[HistoricalAnalystConsensusItem] = []
+
+
+class QuantamentalTimeseriesItem(BaseModel):
+    """Schema for individual quantamental timeseries data point"""
+    timestamp: Optional[str] = None
+    score: Optional[float] = None
+
+
+class QuantamentalTimeseriesResponse(BaseModel):
+    """Schema for quantamental timeseries API response"""
+    ticker: str
+    timeseries: List[QuantamentalTimeseriesItem] = []

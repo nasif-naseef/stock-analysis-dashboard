@@ -105,6 +105,40 @@ export const stockApi = {
   getTargetPrice: (ticker) => makeRequest(() => api.get(`/target-prices/${ticker}`)),
   getBloggerSentiment: (ticker) => makeRequest(() => api.get(`/blogger-sentiment/${ticker}`)),
   
+  // New Stock Data APIs - matching notebook API structure
+  getAnalystConsensus: (ticker) => makeRequest(() => api.get(`/stock/analyst/consensus/${ticker}`)),
+  getAnalystConsensusHistory: (ticker) => makeRequest(() => api.get(`/stock/analyst/history/${ticker}`)),
+  getStockNewsSentiment: (ticker) => makeRequest(() => api.get(`/stock/news/sentiment/${ticker}`)),
+  getNewsArticles: (ticker) => makeRequest(() => api.get(`/stock/news/articles/${ticker}`)),
+  getHedgeFundConfidence: (ticker) => makeRequest(() => api.get(`/stock/hedge-fund/${ticker}`)),
+  getInsiderScore: (ticker) => makeRequest(() => api.get(`/stock/insider-score/${ticker}`)),
+  getCrowdStats: (ticker, statsType = 'all') => 
+    makeRequest(() => api.get(`/stock/crowd/stats/${ticker}?stats_type=${statsType}`)),
+  getStockBloggerSentiment: (ticker) => makeRequest(() => api.get(`/stock/blogger/sentiment/${ticker}`)),
+  getQuantamentalScores: (ticker) => makeRequest(() => api.get(`/stock/quantamental/${ticker}`)),
+  getQuantamentalTimeseries: (ticker) => makeRequest(() => api.get(`/stock/quantamental/timeseries/${ticker}`)),
+  getStockTargetPrices: (ticker) => makeRequest(() => api.get(`/stock/target-prices/${ticker}`)),
+  getArticleDistribution: (ticker) => makeRequest(() => api.get(`/stock/articles/distribution/${ticker}`)),
+  getArticleSentiment: (ticker) => makeRequest(() => api.get(`/stock/articles/sentiment/${ticker}`)),
+  getSupportResistance: (ticker, date) => 
+    makeRequest(() => api.get(`/stock/support-resistance/${ticker}${date ? `?date=${date}` : ''}`)),
+  getStopLoss: (ticker, options = {}) => {
+    const params = new URLSearchParams();
+    if (options.stop_type) params.append('stop_type', options.stop_type);
+    if (options.direction) params.append('direction', options.direction);
+    if (options.tightness) params.append('tightness', options.tightness);
+    if (options.priceperiod) params.append('priceperiod', options.priceperiod);
+    const queryString = params.toString();
+    return makeRequest(() => api.get(`/stock/stop-loss/${ticker}${queryString ? `?${queryString}` : ''}`));
+  },
+  getChartEvents: (ticker, active = true, priceperiod = 'daily') => 
+    makeRequest(() => api.get(`/stock/chart-events/${ticker}?active=${active}&priceperiod=${priceperiod}`)),
+  getChartEventsCombined: (ticker, priceperiod = 'daily') => 
+    makeRequest(() => api.get(`/stock/chart-events/combined/${ticker}?priceperiod=${priceperiod}`)),
+  getTechnicalSummaries: (ticker, category) => 
+    makeRequest(() => api.get(`/stock/technical-summaries/${ticker}${category ? `?category=${category}` : ''}`)),
+  getStockOverview: (ticker) => makeRequest(() => api.get(`/stock/overview/${ticker}`)),
+  
   // Historical Data - with retry logic
   getHistoricalAnalystRatings: (ticker, hoursAgo) => 
     makeRequest(() => api.get(`/history/analyst-ratings/${ticker}?hours_ago=${hoursAgo}`)),
