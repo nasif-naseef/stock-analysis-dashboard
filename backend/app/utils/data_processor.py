@@ -621,6 +621,638 @@ class ResponseBuilder:
         except (ValueError, AttributeError):
             return None
 
+    # ============================================
+    # Notebook API Response Builder Methods
+    # These methods match the exact JSON paths from the Jupyter notebook (Final.ipynb)
+    # ============================================
+
+    def build_analyst_consensus(
+        self,
+        raw_data: Dict[str, Any],
+        ticker: str
+    ) -> Dict[str, Any]:
+        """
+        Build analyst consensus data matching notebook API structure.
+        
+        Extracts from: analystConsensus, analystPriceTarget
+        
+        Args:
+            raw_data: Raw API response from TipRanks
+            ticker: Stock ticker symbol
+            
+        Returns:
+            Dictionary with parsed analyst consensus fields
+        """
+        try:
+            if isinstance(raw_data, list):
+                raw_data = raw_data[0] if raw_data else {}
+            
+            ac = raw_data.get('analystConsensus', {}) or {}
+            apt = raw_data.get('analystPriceTarget', {}) or {}
+            
+            return {
+                "ticker": ticker,
+                "total_ratings": safe_int(ac.get('numberOfAnalystRatings')),
+                "buy_ratings": safe_int(ac.get('buy')),
+                "hold_ratings": safe_int(ac.get('hold')),
+                "sell_ratings": safe_int(ac.get('sell')),
+                "consensus_recommendation": ac.get('consensus'),
+                "consensus_rating_score": safe_float(ac.get('consensusRating')),
+                "price_target_high": safe_float(apt.get('high')),
+                "price_target_low": safe_float(apt.get('low')),
+                "price_target_average": safe_float(apt.get('average')),
+            }
+        except Exception as e:
+            logger.error(f"Error building analyst consensus: {e}")
+            raise
+
+    def build_notebook_news_sentiment(
+        self,
+        raw_data: Dict[str, Any],
+        ticker: str
+    ) -> Dict[str, Any]:
+        """
+        Build news sentiment data matching notebook API structure.
+        
+        Extracts from: newsSentimentScore.stock, newsSentimentScore.sector
+        
+        Args:
+            raw_data: Raw API response from TipRanks
+            ticker: Stock ticker symbol
+            
+        Returns:
+            Dictionary with parsed news sentiment fields
+        """
+        try:
+            if isinstance(raw_data, list):
+                raw_data = raw_data[0] if raw_data else {}
+            
+            sentiment_data = raw_data.get('newsSentimentScore', {}) or {}
+            stock_data = sentiment_data.get('stock', {}) or {}
+            sector_data = sentiment_data.get('sector', {}) or {}
+            
+            return {
+                "ticker": ticker,
+                "stock_bullish_score": safe_float(stock_data.get('bullishPercent')),
+                "stock_bearish_score": safe_float(stock_data.get('bearishPercent')),
+                "sector_bullish_score": safe_float(sector_data.get('bullishPercent')),
+                "sector_bearish_score": safe_float(sector_data.get('bearishPercent')),
+            }
+        except Exception as e:
+            logger.error(f"Error building notebook news sentiment: {e}")
+            raise
+
+    def build_notebook_hedge_fund(
+        self,
+        raw_data: Dict[str, Any],
+        ticker: str
+    ) -> Dict[str, Any]:
+        """
+        Build hedge fund data matching notebook API structure.
+        
+        Extracts from: overview.hedgeFundData
+        
+        Args:
+            raw_data: Raw API response from TipRanks
+            ticker: Stock ticker symbol
+            
+        Returns:
+            Dictionary with parsed hedge fund fields
+        """
+        try:
+            if isinstance(raw_data, list):
+                raw_data = raw_data[0] if raw_data else {}
+            
+            hedge_fund_data = raw_data.get('overview', {}).get('hedgeFundData', {}) or {}
+            
+            return {
+                "ticker": ticker,
+                "sentiment": safe_float(hedge_fund_data.get('sentiment')),
+                "trend_action": safe_int(hedge_fund_data.get('trendAction')),
+                "trend_value": safe_int(hedge_fund_data.get('trendValue')),
+            }
+        except Exception as e:
+            logger.error(f"Error building notebook hedge fund: {e}")
+            raise
+
+    def build_insider_score(
+        self,
+        raw_data: Dict[str, Any],
+        ticker: str
+    ) -> Dict[str, Any]:
+        """
+        Build insider score data matching notebook API structure.
+        
+        Extracts from: overview.insidrConfidenceSignal
+        
+        Args:
+            raw_data: Raw API response from TipRanks
+            ticker: Stock ticker symbol
+            
+        Returns:
+            Dictionary with parsed insider score fields
+        """
+        try:
+            if isinstance(raw_data, list):
+                raw_data = raw_data[0] if raw_data else {}
+            
+            insider_data = raw_data.get('overview', {}).get('insidrConfidenceSignal', {}) or {}
+            
+            return {
+                "ticker": ticker,
+                "stock_score": safe_float(insider_data.get('stockScore')),
+                "sector_score": safe_float(insider_data.get('sectorScore')),
+                "score": safe_float(insider_data.get('score')),
+            }
+        except Exception as e:
+            logger.error(f"Error building insider score: {e}")
+            raise
+
+    def build_notebook_crowd_stats(
+        self,
+        raw_data: Dict[str, Any],
+        ticker: str,
+        stats_type: str = 'all'
+    ) -> Dict[str, Any]:
+        """
+        Build crowd statistics matching notebook API structure.
+        
+        Extracts from: generalStats{statsType.capitalize()}
+        
+        Args:
+            raw_data: Raw API response from TipRanks
+            ticker: Stock ticker symbol
+            stats_type: Type of stats ('all', 'individual', 'institution')
+            
+        Returns:
+            Dictionary with parsed crowd stats fields
+        """
+        try:
+            if isinstance(raw_data, list):
+                raw_data = raw_data[0] if raw_data else {}
+            
+            key = f'generalStats{stats_type.capitalize()}'
+            stats_data = raw_data.get(key, {}) or {}
+            
+            return {
+                "ticker": ticker,
+                "portfolio_holding": safe_int(stats_data.get('portfoliosHolding', 0)) or 0,
+                "amount_of_portfolios": safe_int(stats_data.get('amountOfPortfolios', 0)) or 0,
+                "amount_of_public_portfolios": safe_int(stats_data.get('amountOfPublicPortfolios', 0)) or 0,
+                "percent_allocated": safe_float(stats_data.get('percentAllocated', 0.0)) or 0.0,
+                "based_on_portfolios": safe_int(stats_data.get('basedOnPortfolios', 0)) or 0,
+                "percent_over_last_7d": safe_float(stats_data.get('percentOverLast7Days', 0.0)) or 0.0,
+                "percent_over_last_30d": safe_float(stats_data.get('percentOverLast30Days', 0.0)) or 0.0,
+                "score": safe_float(stats_data.get('score', 0.0)) or 0.0,
+                "individual_sector_average": safe_float(stats_data.get('individualSectorAverage', 0.0)) or 0.0,
+                "frequency": safe_float(stats_data.get('frequency', 0.0)) or 0.0,
+            }
+        except Exception as e:
+            logger.error(f"Error building notebook crowd stats: {e}")
+            raise
+
+    def build_notebook_blogger_sentiment(
+        self,
+        raw_data: Dict[str, Any],
+        ticker: str
+    ) -> Dict[str, Any]:
+        """
+        Build blogger sentiment matching notebook API structure.
+        
+        Extracts from: bloggerSentiment
+        
+        Args:
+            raw_data: Raw API response from TipRanks
+            ticker: Stock ticker symbol
+            
+        Returns:
+            Dictionary with parsed blogger sentiment fields
+        """
+        try:
+            if isinstance(raw_data, list):
+                raw_data = raw_data[0] if raw_data else {}
+            
+            blogger_data = raw_data.get('bloggerSentiment', {}) or {}
+            
+            return {
+                "ticker": ticker,
+                "bearish": safe_int(blogger_data.get('bearish', 0)) or 0,
+                "neutral": safe_int(blogger_data.get('neutral', 0)) or 0,
+                "bullish": safe_int(blogger_data.get('bullish', 0)) or 0,
+                "bearish_count": safe_int(blogger_data.get('bearishCount', 0)) or 0,
+                "neutral_count": safe_int(blogger_data.get('neutralCount', 0)) or 0,
+                "bullish_count": safe_int(blogger_data.get('bullishCount', 0)) or 0,
+                "score": safe_float(blogger_data.get('score', 0.0)) or 0.0,
+                "avg": safe_float(blogger_data.get('avg', 0.0)) or 0.0,
+            }
+        except Exception as e:
+            logger.error(f"Error building notebook blogger sentiment: {e}")
+            raise
+
+    def build_notebook_quantamental(
+        self,
+        raw_data: Dict[str, Any],
+        ticker: str
+    ) -> Dict[str, Any]:
+        """
+        Build quantamental scores matching notebook API structure.
+        
+        Args:
+            raw_data: Raw API response
+            ticker: Stock ticker symbol
+            
+        Returns:
+            Dictionary with parsed quantamental fields
+        """
+        try:
+            if isinstance(raw_data, list):
+                raw_data = raw_data[0] if raw_data else {}
+            raw_data = raw_data or {}
+            
+            return {
+                "ticker": ticker,
+                "overall": safe_int(raw_data.get('quantamental')),
+                "growth": safe_int(raw_data.get('growth')),
+                "value": safe_int(raw_data.get('valuation')),
+                "income": safe_int(raw_data.get('income')),
+                "quality": safe_int(raw_data.get('quality')),
+                "momentum": safe_int(raw_data.get('momentum')),
+            }
+        except Exception as e:
+            logger.error(f"Error building notebook quantamental: {e}")
+            raise
+
+    def build_analyst_consensus_history(
+        self,
+        raw_data: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """
+        Build analyst consensus history from API response.
+        
+        Extracts from: analystConsensusHistory
+        
+        Args:
+            raw_data: Raw API response
+            
+        Returns:
+            List of dictionaries with historical consensus data
+        """
+        try:
+            if isinstance(raw_data, list):
+                raw_data = raw_data[0] if raw_data else {}
+            
+            history = raw_data.get('analystConsensusHistory', []) or []
+            return history
+        except Exception as e:
+            logger.error(f"Error building analyst consensus history: {e}")
+            raise
+
+    def build_notebook_target_price(
+        self,
+        raw_data: Dict[str, Any],
+        ticker: str
+    ) -> Dict[str, Any]:
+        """
+        Build target price data matching notebook API structure.
+        
+        Args:
+            raw_data: Raw API response
+            ticker: Stock ticker symbol
+            
+        Returns:
+            Dictionary with parsed target price fields
+        """
+        try:
+            if isinstance(raw_data, list):
+                raw_data = raw_data[0] if raw_data else {}
+            raw_data = raw_data or {}
+            
+            return {
+                "ticker": ticker,
+                "close_price": safe_float(raw_data.get('closePrice')),
+                "target_price": safe_float(raw_data.get('targetPrice')),
+                "target_date": raw_data.get('targetDate'),
+                "last_updated": raw_data.get('lastUpdated'),
+            }
+        except Exception as e:
+            logger.error(f"Error building notebook target price: {e}")
+            raise
+
+    def build_article_distribution(
+        self,
+        raw_data: Dict[str, Any],
+        ticker: str
+    ) -> Dict[str, Any]:
+        """
+        Build article distribution data matching notebook API structure.
+        
+        Extracts from: topics
+        
+        Args:
+            raw_data: Raw API response
+            ticker: Stock ticker symbol
+            
+        Returns:
+            Dictionary with parsed article distribution fields
+        """
+        try:
+            if isinstance(raw_data, list):
+                raw_data = raw_data[0] if raw_data else {}
+            
+            topics = raw_data.get('topics', []) or []
+            
+            news_count = 0
+            social_count = 0
+            web_count = 0
+            
+            for topic in topics:
+                topic_type = topic.get('type', '').lower()
+                count = safe_int(topic.get('count', 0)) or 0
+                if topic_type == 'news':
+                    news_count = count
+                elif topic_type == 'social':
+                    social_count = count
+                elif topic_type == 'web':
+                    web_count = count
+            
+            total = news_count + social_count + web_count
+            
+            return {
+                "ticker": ticker,
+                "total_articles": total,
+                "news_count": news_count,
+                "news_percentage": (news_count / total * 100) if total > 0 else 0.0,
+                "social_count": social_count,
+                "social_percentage": (social_count / total * 100) if total > 0 else 0.0,
+                "web_count": web_count,
+                "web_percentage": (web_count / total * 100) if total > 0 else 0.0,
+            }
+        except Exception as e:
+            logger.error(f"Error building article distribution: {e}")
+            raise
+
+    def build_article_sentiment(
+        self,
+        raw_data: Dict[str, Any],
+        ticker: str
+    ) -> Dict[str, Any]:
+        """
+        Build article sentiment data matching notebook API structure.
+        
+        Handles sentiment, subjectivity, confidence fields
+        
+        Args:
+            raw_data: Raw API response
+            ticker: Stock ticker symbol
+            
+        Returns:
+            Dictionary with parsed article sentiment fields
+        """
+        try:
+            if isinstance(raw_data, list):
+                raw_data = raw_data[0] if raw_data else {}
+            raw_data = raw_data or {}
+            
+            sentiment = raw_data.get('sentiment', {}) or {}
+            subjectivity = raw_data.get('subjectivity', {}) or {}
+            confidence = raw_data.get('confidence', {}) or {}
+            
+            return {
+                "ticker": ticker,
+                "sentiment_id": sentiment.get('id'),
+                "sentiment_label": sentiment.get('label'),
+                "sentiment_value": safe_int(sentiment.get('value')),
+                "subjectivity_id": subjectivity.get('id'),
+                "subjectivity_label": subjectivity.get('label'),
+                "subjectivity_value": safe_int(subjectivity.get('value')),
+                "confidence_id": confidence.get('id'),
+                "confidence_name": confidence.get('name'),
+            }
+        except Exception as e:
+            logger.error(f"Error building article sentiment: {e}")
+            raise
+
+    def build_support_resistance(
+        self,
+        raw_item: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Build support/resistance data matching notebook API structure.
+        
+        Extracts from: instrument, support, resistance data
+        
+        Args:
+            raw_item: Raw API response item
+            
+        Returns:
+            Dictionary with parsed support/resistance fields
+        """
+        try:
+            raw_item = raw_item or {}
+            
+            instrument = raw_item.get('instrument', {}) or {}
+            support = raw_item.get('support', {}) or {}
+            resistance = raw_item.get('resistance', {}) or {}
+            
+            return {
+                "symbol": instrument.get('symbol', ''),
+                "date": raw_item.get('date', ''),
+                "exchange": instrument.get('exchange', ''),
+                "support_10": safe_float(support.get('10')),
+                "resistance_10": safe_float(resistance.get('10')),
+                "support_20": safe_float(support.get('20')),
+                "resistance_20": safe_float(resistance.get('20')),
+                "support_40": safe_float(support.get('40')),
+                "resistance_40": safe_float(resistance.get('40')),
+                "support_100": safe_float(support.get('100')),
+                "resistance_100": safe_float(resistance.get('100')),
+                "support_250": safe_float(support.get('250')),
+                "resistance_250": safe_float(resistance.get('250')),
+                "support_500": safe_float(support.get('500')),
+                "resistance_500": safe_float(resistance.get('500')),
+            }
+        except Exception as e:
+            logger.error(f"Error building support resistance: {e}")
+            raise
+
+    def build_stop_loss(
+        self,
+        raw_data: Dict[str, Any],
+        ticker: str,
+        stop_type: str = 'Volatility-Based',
+        direction: str = 'Below (Long Position)',
+        tightness: str = 'Medium'
+    ) -> Dict[str, Any]:
+        """
+        Build stop loss data matching notebook API structure.
+        
+        Extracts from: stops, timestamps arrays
+        
+        Args:
+            raw_data: Raw API response
+            ticker: Stock ticker symbol
+            stop_type: Type of stop loss
+            direction: Direction of stop
+            tightness: Tightness level
+            
+        Returns:
+            Dictionary with parsed stop loss fields
+        """
+        try:
+            if isinstance(raw_data, list):
+                raw_data = raw_data[0] if raw_data else {}
+            raw_data = raw_data or {}
+            
+            stops = raw_data.get('stops', [])
+            timestamps = raw_data.get('timestamps', [])
+            
+            recommended_stop = None
+            calculation_timestamp = None
+            
+            if stops and len(stops) > 0:
+                recommended_stop = safe_float(stops[-1])
+            if timestamps and len(timestamps) > 0:
+                calculation_timestamp = timestamps[-1]
+            
+            return {
+                "ticker": ticker,
+                "recommended_stop_price": recommended_stop,
+                "calculation_timestamp": calculation_timestamp,
+                "stop_type": stop_type,
+                "direction": direction,
+                "tightness": tightness,
+            }
+        except Exception as e:
+            logger.error(f"Error building stop loss: {e}")
+            raise
+
+    def build_chart_events_dataframe(
+        self,
+        raw_data: List[Dict[str, Any]],
+        ticker: str,
+        is_active: bool = True
+    ) -> List[Dict[str, Any]]:
+        """
+        Build chart events data matching notebook API structure.
+        
+        Flattens nested event columns
+        
+        Args:
+            raw_data: Raw API response list
+            ticker: Stock ticker symbol
+            is_active: Whether these are active events
+            
+        Returns:
+            List of dictionaries with flattened chart event data
+        """
+        try:
+            if not isinstance(raw_data, list):
+                raw_data = [raw_data] if raw_data else []
+            
+            results = []
+            for item in raw_data:
+                if not item:
+                    continue
+                    
+                event = {
+                    "ticker": ticker,
+                    "is_active": is_active,
+                    "event_id": item.get('id'),
+                    "event_type": item.get('type'),
+                    "event_name": item.get('name'),
+                    "start_date": item.get('startDate'),
+                    "end_date": item.get('endDate'),
+                    "price": safe_float(item.get('price')),
+                    "target_price": safe_float(item.get('targetPrice')),
+                    "stop_price": safe_float(item.get('stopPrice')),
+                }
+                results.append(event)
+            
+            return results
+        except Exception as e:
+            logger.error(f"Error building chart events dataframe: {e}")
+            raise
+
+    def build_technical_summaries_dataframe(
+        self,
+        raw_data: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """
+        Build technical summaries data matching notebook API structure.
+        
+        Extracts from scores with multiple categories
+        
+        Args:
+            raw_data: Raw API response
+            
+        Returns:
+            List of dictionaries with technical summary data
+        """
+        try:
+            if isinstance(raw_data, list):
+                raw_data = raw_data[0] if raw_data else {}
+            raw_data = raw_data or {}
+            
+            scores = raw_data.get('scores', {}) or {}
+            
+            results = []
+            for category, score_data in scores.items():
+                if isinstance(score_data, dict):
+                    results.append({
+                        "category": category,
+                        "score": safe_float(score_data.get('score')),
+                        "signal": score_data.get('signal'),
+                        "trend": score_data.get('trend'),
+                    })
+                elif isinstance(score_data, (int, float)):
+                    results.append({
+                        "category": category,
+                        "score": safe_float(score_data),
+                        "signal": None,
+                        "trend": None,
+                    })
+            
+            return results
+        except Exception as e:
+            logger.error(f"Error building technical summaries dataframe: {e}")
+            raise
+
+    def build_quantamental_timeseries_dataframe(
+        self,
+        raw_data: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """
+        Build quantamental timeseries data matching notebook API structure.
+        
+        Returns DataFrame-like structure with timestamps and scores
+        
+        Args:
+            raw_data: Raw API response
+            
+        Returns:
+            List of dictionaries with timeseries data
+        """
+        try:
+            if isinstance(raw_data, list):
+                return raw_data
+            
+            raw_data = raw_data or {}
+            timestamps = raw_data.get('timestamps', [])
+            scores = raw_data.get('scores', [])
+            
+            results = []
+            for i, ts in enumerate(timestamps):
+                score = scores[i] if i < len(scores) else None
+                results.append({
+                    "timestamp": ts,
+                    "score": safe_float(score),
+                })
+            
+            return results
+        except Exception as e:
+            logger.error(f"Error building quantamental timeseries dataframe: {e}")
+            raise
+
 
 class DataFrameOptimizer:
     """
@@ -701,3 +1333,119 @@ class DataFrameOptimizer:
             }
         except (ImportError, AttributeError):
             return {"error": "Unable to calculate memory usage"}
+
+    @staticmethod
+    def optimize_memory(df: Any) -> Any:
+        """
+        Reduce DataFrame memory usage by downcasting numeric types.
+        
+        Comprehensive memory optimization that combines numeric and object 
+        column optimization.
+        
+        Args:
+            df: pandas DataFrame to optimize
+            
+        Returns:
+            Optimized DataFrame
+        """
+        try:
+            import pandas as pd
+            import numpy as np
+            
+            # Optimize integer columns
+            for col in df.select_dtypes(include=['int64', 'int32']).columns:
+                col_min = df[col].min()
+                col_max = df[col].max()
+                
+                if col_min >= 0:
+                    if col_max < np.iinfo(np.uint8).max:
+                        df[col] = df[col].astype(np.uint8)
+                    elif col_max < np.iinfo(np.uint16).max:
+                        df[col] = df[col].astype(np.uint16)
+                    elif col_max < np.iinfo(np.uint32).max:
+                        df[col] = df[col].astype(np.uint32)
+                else:
+                    if col_min > np.iinfo(np.int8).min and col_max < np.iinfo(np.int8).max:
+                        df[col] = df[col].astype(np.int8)
+                    elif col_min > np.iinfo(np.int16).min and col_max < np.iinfo(np.int16).max:
+                        df[col] = df[col].astype(np.int16)
+                    elif col_min > np.iinfo(np.int32).min and col_max < np.iinfo(np.int32).max:
+                        df[col] = df[col].astype(np.int32)
+            
+            # Optimize float columns
+            for col in df.select_dtypes(include=['float64']).columns:
+                df[col] = pd.to_numeric(df[col], downcast='float')
+            
+            return df
+        except ImportError:
+            logger.warning("pandas not available for DataFrame optimization")
+            return df
+
+    @staticmethod
+    def flatten_nested_columns(df: Any, column_name: str, prefix: str = '') -> Any:
+        """
+        Flatten nested column using json_normalize.
+        
+        Args:
+            df: pandas DataFrame with nested columns
+            column_name: Name of the column to flatten
+            prefix: Prefix to add to flattened column names
+            
+        Returns:
+            DataFrame with flattened columns
+        """
+        try:
+            import pandas as pd
+            
+            if column_name not in df.columns:
+                return df
+            
+            # Get the nested column data
+            nested_data = df[column_name].tolist()
+            
+            # Normalize the nested data
+            flattened = pd.json_normalize(nested_data)
+            
+            # Add prefix to column names if provided
+            if prefix:
+                flattened.columns = [f"{prefix}_{col}" for col in flattened.columns]
+            
+            # Drop the original nested column and join with flattened data
+            df = df.drop(columns=[column_name])
+            df = pd.concat([df.reset_index(drop=True), flattened.reset_index(drop=True)], axis=1)
+            
+            return df
+        except ImportError:
+            logger.warning("pandas not available for DataFrame flattening")
+            return df
+        except Exception as e:
+            logger.warning(f"Error flattening nested columns: {e}")
+            return df
+
+    @staticmethod
+    def process_batch(data_list: List[Dict], optimize_memory: bool = True) -> Any:
+        """
+        Batch process list of dictionaries into DataFrame.
+        
+        Args:
+            data_list: List of dictionaries to convert
+            optimize_memory: Whether to optimize memory after conversion
+            
+        Returns:
+            pandas DataFrame
+        """
+        try:
+            import pandas as pd
+            
+            if not data_list:
+                return pd.DataFrame()
+            
+            df = pd.DataFrame(data_list)
+            
+            if optimize_memory:
+                df = DataFrameOptimizer.optimize_memory(df)
+            
+            return df
+        except ImportError:
+            logger.warning("pandas not available for batch processing")
+            return data_list

@@ -19,6 +19,10 @@ from app.services.config_service import (
     ConfigService,
     config_service,
 )
+from app.services.stock_data_service import (
+    StockDataService,
+    stock_data_service,
+)
 
 __all__ = [
     "DataCollectionService",
@@ -29,4 +33,6 @@ __all__ = [
     "dashboard_service",
     "ConfigService",
     "config_service",
+    "StockDataService",
+    "stock_data_service",
 ]
