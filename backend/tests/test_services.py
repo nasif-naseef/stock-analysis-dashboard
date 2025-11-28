@@ -436,7 +436,7 @@ class TestChangeCalculation:
 class TestResponseBuilder:
     """Tests for ResponseBuilder in data_processor.py"""
     
-    def test_build_analyst_ratings_with_tipranks_format(self):
+    def test_build_analyst_consensus_with_tipranks_format(self):
         """Test parsing TipRanks API format with analystConsensus/analystPriceTarget"""
         from app.utils.data_processor import ResponseBuilder
         
@@ -456,82 +456,38 @@ class TestResponseBuilder:
                 "average": 289.17,
                 "high": 345.0,
                 "low": 225.0
-            },
-            "prices": [
-                {"d": "2024-01-01", "p": 275.0},
-                {"d": "2024-01-02", "p": 277.55}
-            ]
+            }
         }
         
-        result = builder.build_analyst_ratings(raw_data, "AAPL")
+        result = builder.build_analyst_consensus(raw_data, "AAPL")
         
         assert result["ticker"] == "AAPL"
-        assert result["buy_count"] == 21
-        assert result["hold_count"] == 12
-        assert result["sell_count"] == 2
-        assert result["total_analysts"] == 35
-        assert result["avg_price_target"] == 289.17
-        assert result["high_price_target"] == 345.0
-        assert result["low_price_target"] == 225.0
-        assert result["current_price"] == 277.55  # Last price from prices array
-        assert result["consensus_score"] == 4
-        assert result["consensus_text"] == "Moderate Buy"
-        assert result["upside_potential"] is not None
-        assert result["source"] == "tipranks"
+        assert result["buy_ratings"] == 21
+        assert result["hold_ratings"] == 12
+        assert result["sell_ratings"] == 2
+        assert result["total_ratings"] == 35
+        assert result["price_target_average"] == 289.17
+        assert result["price_target_high"] == 345.0
+        assert result["price_target_low"] == 225.0
+        assert result["consensus_rating_score"] == 4
+        assert result["consensus_recommendation"] == "Moderate Buy"
     
-    def test_build_analyst_ratings_with_legacy_format(self):
-        """Test parsing legacy format with top-level buy/hold/sell"""
-        from app.utils.data_processor import ResponseBuilder
-        
-        builder = ResponseBuilder()
-        
-        # Legacy format API response
-        raw_data = {
-            "buy": 15,
-            "hold": 10,
-            "sell": 5,
-            "strongBuy": 3,
-            "strongSell": 1,
-            "consensus": {
-                "rating": 3.5
-            },
-            "priceTarget": {
-                "average": 150.0,
-                "high": 180.0,
-                "low": 120.0
-            },
-            "currentPrice": 145.0
-        }
-        
-        result = builder.build_analyst_ratings(raw_data, "MSFT")
-        
-        assert result["ticker"] == "MSFT"
-        assert result["buy_count"] == 15
-        assert result["hold_count"] == 10
-        assert result["sell_count"] == 5
-        assert result["strong_buy_count"] == 3
-        assert result["strong_sell_count"] == 1
-        assert result["total_analysts"] == 34  # Sum of all
-        assert result["avg_price_target"] == 150.0
-        assert result["current_price"] == 145.0
-        assert result["consensus_score"] == 3.5
-    
-    def test_build_analyst_ratings_with_empty_data(self):
+    def test_build_analyst_consensus_with_empty_data(self):
         """Test parsing empty data"""
         from app.utils.data_processor import ResponseBuilder
         
         builder = ResponseBuilder()
         
-        result = builder.build_analyst_ratings({}, "TEST")
+        result = builder.build_analyst_consensus({}, "TEST")
         
         assert result["ticker"] == "TEST"
-        assert result["buy_count"] == 0
-        assert result["hold_count"] == 0
-        assert result["sell_count"] == 0
-        assert result["total_analysts"] == 0
-        assert result["avg_price_target"] is None
+        assert result["buy_ratings"] is None
+        assert result["hold_ratings"] is None
+        assert result["sell_ratings"] is None
+        assert result["total_ratings"] is None
+        assert result["price_target_average"] is None
     
-    def test_build_analyst_ratings_with_list_response(self):
+    def test_build_analyst_consensus_with_list_response(self):
         """Test parsing list response (extracts first item)"""
         from app.utils.data_processor import ResponseBuilder
         
@@ -553,33 +509,14 @@ class TestResponseBuilder:
             }
         }]
         
-        result = builder.build_analyst_ratings(raw_data, "GOOG")
+        result = builder.build_analyst_consensus(raw_data, "GOOG")
         
         assert result["ticker"] == "GOOG"
-        assert result["buy_count"] == 5
-        assert result["hold_count"] == 3
-        assert result["sell_count"] == 2
-        assert result["total_analysts"] == 10
-        assert result["avg_price_target"] == 100.0
-    
-    def test_build_analyst_ratings_upside_calculation(self):
-        """Test upside potential calculation"""
-        from app.utils.data_processor import ResponseBuilder
-        
-        builder = ResponseBuilder()
-        
-        raw_data = {
-            "analystConsensus": {"buy": 10, "hold": 5, "sell": 0},
-            "analystPriceTarget": {"average": 110.0},
-            "prices": [{"p": 100.0}]
-        }
-        
-        result = builder.build_analyst_ratings(raw_data, "TEST")
-        
-        # (110 - 100) / 100 * 100 = 10%
-        assert result["upside_potential"] == 10.0
-        assert result["current_price"] == 100.0
-        assert result["avg_price_target"] == 110.0
+        assert result["buy_ratings"] == 5
+        assert result["hold_ratings"] == 3
+        assert result["sell_ratings"] == 2
+        assert result["total_ratings"] == 10
+        assert result["price_target_average"] == 100.0
     
     def test_build_news_sentiment_with_correct_paths(self):
         """Test news sentiment parsing with newsSentimentScore.stock and sector paths"""
@@ -598,9 +535,7 @@ class TestResponseBuilder:
                     "bullishPercent": 55.0,
                     "bearishPercent": 45.0
                 }
-            },
-            "buzz": 0.85,
-            "newsScore": 7.5
+            }
         }
         
         result = builder.build_news_sentiment(raw_data, "AAPL")
@@ -610,10 +545,6 @@ class TestResponseBuilder:
         assert result["stock_bearish_score"] == 34.5
         assert result["sector_bullish_score"] == 55.0
         assert result["sector_bearish_score"] == 45.0
-        assert result["buzz_score"] == 0.85
-        assert result["news_score"] == 7.5
-        assert result["sentiment_score"] == 31.0  # 65.5 - 34.5
-        assert result["source"] == "tipranks"
     
     def test_build_news_sentiment_with_empty_data(self):
         """Test news sentiment parsing with empty data"""
@@ -629,7 +560,7 @@ class TestResponseBuilder:
         assert result["sector_bullish_score"] is None
         assert result["sector_bearish_score"] is None
     
-    def test_build_crowd_statistics_with_correct_paths(self):
+    def test_build_crowd_stats_with_correct_paths(self):
         """Test crowd statistics parsing with generalStatsAll path"""
         from app.utils.data_processor import ResponseBuilder
         
@@ -647,7 +578,7 @@ class TestResponseBuilder:
             }
         }
         
-        result = builder.build_crowd_statistics(raw_data, "TSLA")
+        result = builder.build_crowd_stats(raw_data, "TSLA")
         
         assert result["ticker"] == "TSLA"
         assert result["portfolio_holding"] == 1500
@@ -656,9 +587,8 @@ class TestResponseBuilder:
         assert result["percent_over_last_7d"] == 1.2
         assert result["percent_over_last_30d"] == 5.8
         assert result["score"] == 7.5
-        assert result["source"] == "tipranks"
     
-    def test_build_crowd_statistics_with_stats_type(self):
+    def test_build_crowd_stats_with_stats_type(self):
         """Test crowd statistics with different stats types"""
         from app.utils.data_processor import ResponseBuilder
         
@@ -671,19 +601,19 @@ class TestResponseBuilder:
             }
         }
         
-        result = builder.build_crowd_statistics(raw_data, "NVDA", stats_type='individual')
+        result = builder.build_crowd_stats(raw_data, "NVDA", stats_type='individual')
         
         assert result["ticker"] == "NVDA"
         assert result["portfolio_holding"] == 1000
         assert result["score"] == 6.5
     
-    def test_build_crowd_statistics_with_empty_data(self):
+    def test_build_crowd_stats_with_empty_data(self):
         """Test crowd statistics with empty data"""
         from app.utils.data_processor import ResponseBuilder
         
         builder = ResponseBuilder()
         
-        result = builder.build_crowd_statistics({}, "TEST")
+        result = builder.build_crowd_stats({}, "TEST")
         
         assert result["ticker"] == "TEST"
         assert result["portfolio_holding"] == 0
@@ -691,7 +621,7 @@ class TestResponseBuilder:
         assert result["percent_allocated"] == 0.0
         assert result["score"] == 0.0
     
-    def test_build_hedge_fund_data_with_overview_path(self):
+    def test_build_hedge_fund_with_overview_path(self):
         """Test hedge fund data parsing with overview.hedgeFundData path"""
         from app.utils.data_processor import ResponseBuilder
         
@@ -703,70 +633,30 @@ class TestResponseBuilder:
                 "hedgeFundData": {
                     "sentiment": 0.75,
                     "trendAction": 2,
-                    "trendValue": 15,
-                    "newPositions": 10,
-                    "increasedPositions": 25,
-                    "decreasedPositions": 5,
-                    "soldOutPositions": 2,
-                    "count": 150,
-                    "totalSharesHeld": 5000000,
-                    "marketValue": 750000000
+                    "trendValue": 15
                 }
             }
         }
         
-        result = builder.build_hedge_fund_data(raw_data, "GOOGL")
+        result = builder.build_hedge_fund(raw_data, "GOOGL")
         
         assert result["ticker"] == "GOOGL"
         assert result["sentiment"] == 0.75
         assert result["trend_action"] == 2
         assert result["trend_value"] == 15
-        assert result["new_positions"] == 10
-        assert result["increased_positions"] == 25
-        assert result["decreased_positions"] == 5
-        assert result["closed_positions"] == 2
-        assert result["hedge_fund_count"] == 150
-        assert result["total_shares_held"] == 5000000
-        assert result["market_value_held"] == 750000000
-        assert result["source"] == "tipranks"
     
-    def test_build_hedge_fund_data_fallback_to_direct_path(self):
-        """Test hedge fund data fallback to direct hedgeFundData path"""
-        from app.utils.data_processor import ResponseBuilder
-        
-        builder = ResponseBuilder()
-        
-        # Legacy format with direct hedgeFundData
-        raw_data = {
-            "hedgeFundData": {
-                "sentiment": 0.5,
-                "trendAction": 1,
-                "trendValue": 10,
-                "count": 100
-            }
-        }
-        
-        result = builder.build_hedge_fund_data(raw_data, "MSFT")
-        
-        assert result["ticker"] == "MSFT"
-        assert result["sentiment"] == 0.5
-        assert result["trend_action"] == 1
-        assert result["trend_value"] == 10
-        assert result["hedge_fund_count"] == 100
-    
-    def test_build_hedge_fund_data_with_empty_data(self):
+    def test_build_hedge_fund_with_empty_data(self):
         """Test hedge fund data with empty data"""
         from app.utils.data_processor import ResponseBuilder
         
         builder = ResponseBuilder()
         
-        result = builder.build_hedge_fund_data({}, "TEST")
+        result = builder.build_hedge_fund({}, "TEST")
         
         assert result["ticker"] == "TEST"
         assert result["sentiment"] is None
         assert result["trend_action"] is None
         assert result["trend_value"] is None
-        assert result["hedge_fund_count"] == 0
 
 
 if __name__ == "__main__":

@@ -6,7 +6,6 @@ import stockApi from '../api/stockApi';
 import TickerSelector from '../components/TickerSelector';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
-import { formatLargeNumber } from '../utils/formatters';
 
 const DataCard = ({ title, value, subtitle, color, trend }) => (
   <Paper sx={{ p: 2, height: '100%' }}>
@@ -21,6 +20,24 @@ const DataCard = ({ title, value, subtitle, color, trend }) => (
   </Paper>
 );
 
+/**
+ * Get sentiment label from trend action value
+ * trend_action: 1 = increasing, -1 = decreasing, 0 = neutral
+ */
+const getSentimentLabel = (trendAction, sentiment) => {
+  if (trendAction > 0 || sentiment > 0) return { label: 'Accumulating', color: 'success', icon: <TrendingUp /> };
+  if (trendAction < 0 || sentiment < 0) return { label: 'Distributing', color: 'error', icon: <TrendingDown /> };
+  return { label: 'Neutral', color: 'default', icon: <TrendingFlat /> };
+};
+
+/**
+ * Format sentiment score for display
+ */
+const formatSentiment = (value) => {
+  if (value === null || value === undefined) return 'N/A';
+  return value.toFixed(2);
+};
+
 export default function HedgeFund() {
   const [selectedTicker, setSelectedTicker] = useState('AAPL');
 
@@ -31,12 +48,13 @@ export default function HedgeFund() {
   );
 
   const hedgeFundData = data?.data || {};
-
-  const getTrendFromChange = (change) => {
-    if (change > 0) return 'up';
-    if (change < 0) return 'down';
-    return 'flat';
-  };
+  
+  // Extract notebook-style fields
+  const sentiment = hedgeFundData.sentiment;
+  const trendAction = hedgeFundData.trend_action;
+  const trendValue = hedgeFundData.trend_value;
+  
+  const sentimentInfo = getSentimentLabel(trendAction, sentiment);
 
   return (
     <Box>
@@ -57,124 +75,77 @@ export default function HedgeFund() {
         <ErrorMessage message="Failed to load hedge fund data" onRetry={refetch} />
       ) : (
         <Grid container spacing={3}>
-          {/* Summary Cards */}
-          <Grid item xs={12} sm={6} md={3}>
+          {/* Summary Cards - Using notebook-style fields */}
+          <Grid item xs={12} sm={6} md={4}>
             <DataCard 
-              title="Hedge Fund Holders" 
-              value={hedgeFundData.hedge_fund_count || 0}
-              subtitle="Total funds holding"
+              title="Sentiment Score" 
+              value={formatSentiment(sentiment)}
+              subtitle="Hedge fund sentiment indicator"
+              color={sentiment > 0 ? '#2e7d32' : sentiment < 0 ? '#d32f2f' : 'inherit'}
+              trend={sentiment > 0 ? 'up' : sentiment < 0 ? 'down' : 'flat'}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} md={4}>
             <DataCard 
-              title="Net Change" 
-              value={hedgeFundData.net_shares_change ? formatLargeNumber(hedgeFundData.net_shares_change) : 'N/A'}
-              trend={getTrendFromChange(hedgeFundData.net_shares_change)}
-              color={hedgeFundData.net_shares_change > 0 ? '#2e7d32' : hedgeFundData.net_shares_change < 0 ? '#d32f2f' : 'inherit'}
+              title="Trend Action" 
+              value={trendAction !== null && trendAction !== undefined ? trendAction : 'N/A'}
+              subtitle={trendAction > 0 ? 'Increasing' : trendAction < 0 ? 'Decreasing' : 'Stable'}
+              color={trendAction > 0 ? '#2e7d32' : trendAction < 0 ? '#d32f2f' : 'inherit'}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} md={4}>
             <DataCard 
-              title="New Positions" 
-              value={hedgeFundData.new_positions || 0}
-              color="#2e7d32"
+              title="Trend Value" 
+              value={trendValue !== null && trendValue !== undefined ? trendValue : 'N/A'}
+              subtitle="Net position change indicator"
             />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <DataCard 
-              title="Closed Positions" 
-              value={hedgeFundData.closed_positions || 0}
-              color="#d32f2f"
-            />
-          </Grid>
-
-          {/* Position Changes */}
-          <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 2 }}>
-              <Typography variant="h6" gutterBottom>Position Changes</Typography>
-              <Divider sx={{ mb: 2 }} />
-              <Grid container spacing={2}>
-                <Grid item xs={6}>
-                  <Typography variant="subtitle2" color="textSecondary">Increased Positions</Typography>
-                  <Typography variant="h5" color="success.main">
-                    {hedgeFundData.increased_positions || 0}
-                  </Typography>
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="subtitle2" color="textSecondary">Decreased Positions</Typography>
-                  <Typography variant="h5" color="error.main">
-                    {hedgeFundData.decreased_positions || 0}
-                  </Typography>
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="subtitle2" color="textSecondary">No Change</Typography>
-                  <Typography variant="h5">
-                    {hedgeFundData.no_change_positions || 0}
-                  </Typography>
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="subtitle2" color="textSecondary">Activity Ratio</Typography>
-                  <Typography variant="h5">
-                    {hedgeFundData.activity_ratio ? `${(hedgeFundData.activity_ratio * 100).toFixed(1)}%` : 'N/A'}
-                  </Typography>
-                </Grid>
-              </Grid>
-            </Paper>
-          </Grid>
-
-          {/* Holdings Summary */}
-          <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 2 }}>
-              <Typography variant="h6" gutterBottom>Holdings Summary</Typography>
-              <Divider sx={{ mb: 2 }} />
-              <Grid container spacing={2}>
-                <Grid item xs={6}>
-                  <Typography variant="subtitle2" color="textSecondary">Total Shares Held</Typography>
-                  <Typography variant="h5">
-                    {formatLargeNumber(hedgeFundData.total_shares_held)}
-                  </Typography>
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="subtitle2" color="textSecondary">Total Value</Typography>
-                  <Typography variant="h5">
-                    ${formatLargeNumber(hedgeFundData.total_value)}
-                  </Typography>
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="subtitle2" color="textSecondary">Avg Position Size</Typography>
-                  <Typography variant="h5">
-                    ${formatLargeNumber(hedgeFundData.avg_position_size)}
-                  </Typography>
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="subtitle2" color="textSecondary">% Ownership</Typography>
-                  <Typography variant="h5">
-                    {hedgeFundData.ownership_percent ? `${hedgeFundData.ownership_percent.toFixed(2)}%` : 'N/A'}
-                  </Typography>
-                </Grid>
-              </Grid>
-            </Paper>
           </Grid>
 
           {/* Sentiment Indicator */}
           <Grid item xs={12}>
             <Paper sx={{ p: 2 }}>
-              <Typography variant="h6" gutterBottom>Hedge Fund Sentiment</Typography>
+              <Typography variant="h6" gutterBottom>Hedge Fund Sentiment Analysis</Typography>
               <Divider sx={{ mb: 2 }} />
-              <Box display="flex" alignItems="center" gap={2}>
-                <Typography variant="body1">Overall Trend:</Typography>
-                <Chip 
-                  icon={hedgeFundData.net_shares_change > 0 ? <TrendingUp /> : 
-                        hedgeFundData.net_shares_change < 0 ? <TrendingDown /> : <TrendingFlat />}
-                  label={hedgeFundData.net_shares_change > 0 ? 'Accumulating' : 
-                         hedgeFundData.net_shares_change < 0 ? 'Distributing' : 'Neutral'}
-                  color={hedgeFundData.net_shares_change > 0 ? 'success' : 
-                         hedgeFundData.net_shares_change < 0 ? 'error' : 'default'}
-                />
-                <Typography variant="body2" color="textSecondary" sx={{ ml: 'auto' }}>
-                  Based on net position changes
-                </Typography>
-              </Box>
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <Box display="flex" alignItems="center" gap={2}>
+                    <Typography variant="body1">Overall Trend:</Typography>
+                    <Chip 
+                      icon={sentimentInfo.icon}
+                      label={sentimentInfo.label}
+                      color={sentimentInfo.color}
+                    />
+                  </Box>
+                  <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+                    Based on hedge fund sentiment and trend indicators
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Box>
+                    <Typography variant="subtitle2" color="textSecondary">Sentiment Details</Typography>
+                    <Box sx={{ mt: 1 }}>
+                      <Box display="flex" justifyContent="space-between" mb={1}>
+                        <Typography variant="body2">Sentiment Score:</Typography>
+                        <Typography variant="body2" fontWeight="bold">
+                          {formatSentiment(sentiment)}
+                        </Typography>
+                      </Box>
+                      <Box display="flex" justifyContent="space-between" mb={1}>
+                        <Typography variant="body2">Trend Action:</Typography>
+                        <Typography variant="body2" fontWeight="bold">
+                          {trendAction !== null && trendAction !== undefined ? trendAction : 'N/A'}
+                        </Typography>
+                      </Box>
+                      <Box display="flex" justifyContent="space-between">
+                        <Typography variant="body2">Trend Value:</Typography>
+                        <Typography variant="body2" fontWeight="bold">
+                          {trendValue !== null && trendValue !== undefined ? trendValue : 'N/A'}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Box>
+                </Grid>
+              </Grid>
               {hedgeFundData.timestamp && (
                 <Typography variant="caption" color="textSecondary" sx={{ mt: 2, display: 'block' }}>
                   Last updated: {new Date(hedgeFundData.timestamp).toLocaleString()}
