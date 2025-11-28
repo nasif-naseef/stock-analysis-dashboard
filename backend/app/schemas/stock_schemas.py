@@ -625,3 +625,148 @@ class PaginatedResponse(BaseModel, Generic[T]):
     page: int
     per_page: int
     pages: int
+
+
+# ============================================
+# Notebook API Response Schemas
+# ============================================
+
+class AnalystConsensusResponse(BaseModel):
+    """Schema for analyst consensus API response matching notebook structure"""
+    ticker: str
+    total_ratings: Optional[int] = None
+    buy_ratings: Optional[int] = None
+    hold_ratings: Optional[int] = None
+    sell_ratings: Optional[int] = None
+    consensus_recommendation: Optional[str] = None
+    consensus_rating_score: Optional[float] = None
+    price_target_high: Optional[float] = None
+    price_target_low: Optional[float] = None
+    price_target_average: Optional[float] = None
+
+
+class NotebookNewsSentimentResponse(BaseModel):
+    """Schema for news sentiment API response matching notebook structure"""
+    ticker: str
+    stock_bullish_score: Optional[float] = None
+    stock_bearish_score: Optional[float] = None
+    sector_bullish_score: Optional[float] = None
+    sector_bearish_score: Optional[float] = None
+
+
+class NotebookHedgeFundResponse(BaseModel):
+    """Schema for hedge fund API response matching notebook structure"""
+    ticker: str
+    sentiment: Optional[float] = None
+    trend_action: Optional[int] = None
+    trend_value: Optional[int] = None
+
+
+class InsiderScoreResponse(BaseModel):
+    """Schema for insider score API response matching notebook structure"""
+    ticker: str
+    stock_score: Optional[float] = None
+    sector_score: Optional[float] = None
+    score: Optional[float] = None
+
+
+class NotebookCrowdStatsResponse(BaseModel):
+    """Schema for crowd stats API response matching notebook structure"""
+    ticker: str
+    portfolio_holding: int = 0
+    amount_of_portfolios: int = 0
+    amount_of_public_portfolios: int = 0
+    percent_allocated: float = 0.0
+    based_on_portfolios: int = 0
+    percent_over_last_7d: float = 0.0
+    percent_over_last_30d: float = 0.0
+    score: float = 0.0
+    individual_sector_average: float = 0.0
+    frequency: float = 0.0
+
+
+class NotebookBloggerSentimentResponse(BaseModel):
+    """Schema for blogger sentiment API response matching notebook structure"""
+    ticker: str
+    bearish: int = 0
+    neutral: int = 0
+    bullish: int = 0
+    bearish_count: int = 0
+    neutral_count: int = 0
+    bullish_count: int = 0
+    score: float = 0.0
+    avg: float = 0.0
+
+
+class NotebookQuantamentalResponse(BaseModel):
+    """Schema for quantamental API response matching notebook structure"""
+    ticker: str
+    overall: Optional[int] = None
+    growth: Optional[int] = None
+    value: Optional[int] = None
+    income: Optional[int] = None
+    quality: Optional[int] = None
+    momentum: Optional[int] = None
+
+
+class NotebookTargetPriceResponse(BaseModel):
+    """Schema for target price API response matching notebook structure"""
+    ticker: str
+    close_price: Optional[float] = None
+    target_price: Optional[float] = None
+    target_date: Optional[str] = None
+    last_updated: Optional[str] = None
+
+
+class ArticleDistributionResponse(BaseModel):
+    """Schema for article distribution API response matching notebook structure"""
+    ticker: str
+    total_articles: int = 0
+    news_count: int = 0
+    news_percentage: float = 0.0
+    social_count: int = 0
+    social_percentage: float = 0.0
+    web_count: int = 0
+    web_percentage: float = 0.0
+
+
+class ArticleSentimentResponse(BaseModel):
+    """Schema for article sentiment API response matching notebook structure"""
+    ticker: str
+    sentiment_id: Optional[str] = None
+    sentiment_label: Optional[str] = None
+    sentiment_value: Optional[int] = None
+    subjectivity_id: Optional[str] = None
+    subjectivity_label: Optional[str] = None
+    subjectivity_value: Optional[int] = None
+    confidence_id: Optional[str] = None
+    confidence_name: Optional[str] = None
+
+
+class SupportResistanceResponse(BaseModel):
+    """Schema for support/resistance API response matching notebook structure"""
+    symbol: str
+    date: str
+    exchange: str
+    support_10: Optional[float] = None
+    resistance_10: Optional[float] = None
+    support_20: Optional[float] = None
+    resistance_20: Optional[float] = None
+    support_40: Optional[float] = None
+    resistance_40: Optional[float] = None
+    support_100: Optional[float] = None
+    resistance_100: Optional[float] = None
+    support_250: Optional[float] = None
+    resistance_250: Optional[float] = None
+    support_500: Optional[float] = None
+    resistance_500: Optional[float] = None
+
+
+class StopLossResponse(BaseModel):
+    """Schema for stop loss API response matching notebook structure"""
+    ticker: str
+    recommended_stop_price: Optional[float] = None
+    calculation_timestamp: Optional[str] = None
+    stop_type: str = 'Volatility-Based'
+    direction: str = 'Below (Long Position)'
+    tightness: str = 'Medium'
