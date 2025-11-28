@@ -249,7 +249,9 @@ class ResponseBuilder:
                 "sentiment_score": score,
                 "buzz_score": buzz,
                 "news_score": news_score,
-                "total_articles": 0,  # Not available in newsSentimentScore
+                # Article counts not available in newsSentimentScore format
+                # Using 0 for backwards compatibility with database model defaults
+                "total_articles": 0,
                 "positive_articles": 0,
                 "negative_articles": 0,
                 "neutral_articles": 0,
