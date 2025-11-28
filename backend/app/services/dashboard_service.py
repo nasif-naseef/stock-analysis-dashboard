@@ -170,18 +170,85 @@ class DashboardService:
         }
 
     def _extract_analyst_summary(self, data: Optional[AnalystRating]) -> Dict[str, Any]:
-        """Extract summary from analyst rating data"""
+        """Extract summary from analyst rating data, with fallback to raw_data"""
         if not data:
             return {}
+        
+        # Get base values from the model
+        consensus_rating = data.consensus_rating.value if data.consensus_rating else None
+        consensus_score = data.consensus_score
+        avg_price_target = data.avg_price_target
+        current_price = data.current_price
+        upside_potential = data.upside_potential
+        total_analysts = data.total_analysts
+        buy_count = data.buy_count
+        hold_count = data.hold_count
+        sell_count = data.sell_count
+        
+        # Fallback to raw_data if the parsed fields are null/zero
+        if data.raw_data:
+            raw = data.raw_data
+            analyst_consensus = raw.get("analystConsensus", {}) or {}
+            analyst_price_target = raw.get("analystPriceTarget", {}) or {}
+            prices = raw.get("prices", [])
+            
+            # Total analysts fallback
+            if not total_analysts:
+                total_analysts = analyst_consensus.get("numberOfAnalystRatings", 0) or 0
+            
+            # Rating counts fallback
+            if not buy_count:
+                buy_count = analyst_consensus.get("buy", 0) or 0
+            if not hold_count:
+                hold_count = analyst_consensus.get("hold", 0) or 0
+            if not sell_count:
+                sell_count = analyst_consensus.get("sell", 0) or 0
+            
+            # Price targets fallback
+            if avg_price_target is None:
+                avg_price_target = analyst_price_target.get("average")
+            
+            # Current price fallback from prices array
+            if current_price is None and prices:
+                try:
+                    current_price = prices[-1].get("p") if prices else None
+                except (KeyError, IndexError, TypeError):
+                    pass
+            
+            # Consensus score fallback
+            if consensus_score is None:
+                consensus_score = analyst_consensus.get("consensusRating")
+            
+            # Consensus text fallback for the rating
+            if consensus_rating is None:
+                consensus_text = analyst_consensus.get("consensus", "")
+                if consensus_text:
+                    # Map consensus text to rating type
+                    text_lower = consensus_text.lower()
+                    if "strong buy" in text_lower:
+                        consensus_rating = "strong_buy"
+                    elif "buy" in text_lower:
+                        consensus_rating = "buy"
+                    elif "sell" in text_lower:
+                        consensus_rating = "sell" if "strong" not in text_lower else "strong_sell"
+                    else:
+                        consensus_rating = "hold"
+            
+            # Calculate upside potential if missing
+            if upside_potential is None and avg_price_target and current_price and current_price > 0:
+                upside_potential = ((avg_price_target - current_price) / current_price) * 100
 
         return {
             "timestamp": data.timestamp.isoformat() if data.timestamp else None,
-            "consensus_rating": data.consensus_rating.value if data.consensus_rating else None,
-            "consensus_score": data.consensus_score,
-            "avg_price_target": data.avg_price_target,
-            "current_price": data.current_price,
-            "upside_potential": data.upside_potential,
-            "total_analysts": data.total_analysts,
+            "consensus_rating": consensus_rating,
+            "consensus_score": consensus_score,
+            "avg_price_target": avg_price_target,
+            "current_price": current_price,
+            "upside_potential": upside_potential,
+            "total_analysts": total_analysts,
+            "buy_count": buy_count,
+            "hold_count": hold_count,
+            "sell_count": sell_count,
         }
 
     def _extract_sentiment_summary(self, data: Optional[NewsSentiment]) -> Dict[str, Any]:

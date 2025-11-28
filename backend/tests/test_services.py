@@ -429,5 +429,158 @@ class TestChangeCalculation:
         assert result["percentage_change"] is None
 
 
+# ============================================
+# Tests for ResponseBuilder (Data Processor)
+# ============================================
+
+class TestResponseBuilder:
+    """Tests for ResponseBuilder in data_processor.py"""
+    
+    def test_build_analyst_ratings_with_tipranks_format(self):
+        """Test parsing TipRanks API format with analystConsensus/analystPriceTarget"""
+        from app.utils.data_processor import ResponseBuilder
+        
+        builder = ResponseBuilder()
+        
+        # TipRanks format API response
+        raw_data = {
+            "analystConsensus": {
+                "numberOfAnalystRatings": 35,
+                "buy": 21,
+                "hold": 12,
+                "sell": 2,
+                "consensus": "Moderate Buy",
+                "consensusRating": 4
+            },
+            "analystPriceTarget": {
+                "average": 289.17,
+                "high": 345.0,
+                "low": 225.0
+            },
+            "prices": [
+                {"d": "2024-01-01", "p": 275.0},
+                {"d": "2024-01-02", "p": 277.55}
+            ]
+        }
+        
+        result = builder.build_analyst_ratings(raw_data, "AAPL")
+        
+        assert result["ticker"] == "AAPL"
+        assert result["buy_count"] == 21
+        assert result["hold_count"] == 12
+        assert result["sell_count"] == 2
+        assert result["total_analysts"] == 35
+        assert result["avg_price_target"] == 289.17
+        assert result["high_price_target"] == 345.0
+        assert result["low_price_target"] == 225.0
+        assert result["current_price"] == 277.55  # Last price from prices array
+        assert result["consensus_score"] == 4
+        assert result["consensus_text"] == "Moderate Buy"
+        assert result["upside_potential"] is not None
+        assert result["source"] == "tipranks"
+    
+    def test_build_analyst_ratings_with_legacy_format(self):
+        """Test parsing legacy format with top-level buy/hold/sell"""
+        from app.utils.data_processor import ResponseBuilder
+        
+        builder = ResponseBuilder()
+        
+        # Legacy format API response
+        raw_data = {
+            "buy": 15,
+            "hold": 10,
+            "sell": 5,
+            "strongBuy": 3,
+            "strongSell": 1,
+            "consensus": {
+                "rating": 3.5
+            },
+            "priceTarget": {
+                "average": 150.0,
+                "high": 180.0,
+                "low": 120.0
+            },
+            "currentPrice": 145.0
+        }
+        
+        result = builder.build_analyst_ratings(raw_data, "MSFT")
+        
+        assert result["ticker"] == "MSFT"
+        assert result["buy_count"] == 15
+        assert result["hold_count"] == 10
+        assert result["sell_count"] == 5
+        assert result["strong_buy_count"] == 3
+        assert result["strong_sell_count"] == 1
+        assert result["total_analysts"] == 34  # Sum of all
+        assert result["avg_price_target"] == 150.0
+        assert result["current_price"] == 145.0
+        assert result["consensus_score"] == 3.5
+    
+    def test_build_analyst_ratings_with_empty_data(self):
+        """Test parsing empty data"""
+        from app.utils.data_processor import ResponseBuilder
+        
+        builder = ResponseBuilder()
+        
+        result = builder.build_analyst_ratings({}, "TEST")
+        
+        assert result["ticker"] == "TEST"
+        assert result["buy_count"] == 0
+        assert result["hold_count"] == 0
+        assert result["sell_count"] == 0
+        assert result["total_analysts"] == 0
+        assert result["avg_price_target"] is None
+    
+    def test_build_analyst_ratings_with_list_response(self):
+        """Test parsing list response (extracts first item)"""
+        from app.utils.data_processor import ResponseBuilder
+        
+        builder = ResponseBuilder()
+        
+        raw_data = [{
+            "analystConsensus": {
+                "numberOfAnalystRatings": 10,
+                "buy": 5,
+                "hold": 3,
+                "sell": 2,
+                "consensus": "Buy",
+                "consensusRating": 4.2
+            },
+            "analystPriceTarget": {
+                "average": 100.0,
+                "high": 120.0,
+                "low": 80.0
+            }
+        }]
+        
+        result = builder.build_analyst_ratings(raw_data, "GOOG")
+        
+        assert result["ticker"] == "GOOG"
+        assert result["buy_count"] == 5
+        assert result["hold_count"] == 3
+        assert result["sell_count"] == 2
+        assert result["total_analysts"] == 10
+        assert result["avg_price_target"] == 100.0
+    
+    def test_build_analyst_ratings_upside_calculation(self):
+        """Test upside potential calculation"""
+        from app.utils.data_processor import ResponseBuilder
+        
+        builder = ResponseBuilder()
+        
+        raw_data = {
+            "analystConsensus": {"buy": 10, "hold": 5, "sell": 0},
+            "analystPriceTarget": {"average": 110.0},
+            "prices": [{"p": 100.0}]
+        }
+        
+        result = builder.build_analyst_ratings(raw_data, "TEST")
+        
+        # (110 - 100) / 100 * 100 = 10%
+        assert result["upside_potential"] == 10.0
+        assert result["current_price"] == 100.0
+        assert result["avg_price_target"] == 110.0
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
