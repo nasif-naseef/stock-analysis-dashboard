@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Box, AppBar, Toolbar, Typography, Drawer, List, ListItemButton,
@@ -31,36 +31,85 @@ export default function Layout({ children }) {
 
   const handleDrawerToggle = () => setMobileOpen(!mobileOpen);
 
+  // Handle keyboard navigation
+  const handleKeyDown = useCallback((event, path, index) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      navigate(path);
+      setMobileOpen(false);
+    } else if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      const nextIndex = (index + 1) % menuItems.length;
+      const nextElement = document.querySelector(`[data-menu-index="${nextIndex}"]`);
+      nextElement?.focus();
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      const prevIndex = (index - 1 + menuItems.length) % menuItems.length;
+      const prevElement = document.querySelector(`[data-menu-index="${prevIndex}"]`);
+      prevElement?.focus();
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      const firstElement = document.querySelector('[data-menu-index="0"]');
+      firstElement?.focus();
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      const lastElement = document.querySelector(`[data-menu-index="${menuItems.length - 1}"]`);
+      lastElement?.focus();
+    }
+  }, [navigate]);
+
   const drawer = (
     <div>
       <Toolbar>
-        <Typography variant="h6" noWrap>Stock Analysis</Typography>
+        <Typography variant="h6" noWrap component="div">Stock Analysis</Typography>
       </Toolbar>
       <Divider />
-      <List>
-        {menuItems.map((item) => (
-          <ListItemButton 
-            key={item.text} 
-            onClick={() => {
-              navigate(item.path);
-              setMobileOpen(false);
-            }}
-            selected={location.pathname === item.path}
-            sx={{
-              '&.Mui-selected': {
-                backgroundColor: 'primary.light',
-                '&:hover': {
+      <List 
+        role="navigation" 
+        aria-label="Main navigation"
+        component="nav"
+      >
+        {menuItems.map((item, index) => {
+          const isSelected = location.pathname === item.path;
+          return (
+            <ListItemButton 
+              key={item.text} 
+              onClick={() => {
+                navigate(item.path);
+                setMobileOpen(false);
+              }}
+              onKeyDown={(e) => handleKeyDown(e, item.path, index)}
+              selected={isSelected}
+              data-menu-index={index}
+              tabIndex={0}
+              role="menuitem"
+              aria-current={isSelected ? 'page' : undefined}
+              aria-label={`Navigate to ${item.text}`}
+              sx={{
+                '&.Mui-selected': {
                   backgroundColor: 'primary.light',
+                  '&:hover': {
+                    backgroundColor: 'primary.light',
+                  },
                 },
-              },
-            }}
-          >
-            <ListItemIcon sx={{ color: location.pathname === item.path ? 'primary.main' : 'inherit' }}>
-              {item.icon}
-            </ListItemIcon>
-            <ListItemText primary={item.text} />
-          </ListItemButton>
-        ))}
+                '&:focus': {
+                  backgroundColor: 'action.focus',
+                  outline: '2px solid',
+                  outlineColor: 'primary.main',
+                  outlineOffset: '-2px',
+                },
+              }}
+            >
+              <ListItemIcon 
+                sx={{ color: isSelected ? 'primary.main' : 'inherit' }}
+                aria-hidden="true"
+              >
+                {item.icon}
+              </ListItemIcon>
+              <ListItemText primary={item.text} />
+            </ListItemButton>
+          );
+        })}
       </List>
     </div>
   );
@@ -81,17 +130,25 @@ export default function Layout({ children }) {
             edge="start" 
             onClick={handleDrawerToggle} 
             sx={{ mr: 2, display: { sm: 'none' } }}
+            aria-label="Open navigation menu"
+            aria-expanded={mobileOpen}
+            aria-controls="mobile-nav-drawer"
           >
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" noWrap component="div">
+          <Typography variant="h6" noWrap component="h1">
             Stock Analysis Dashboard
           </Typography>
         </Toolbar>
       </AppBar>
       
-      <Box component="nav" sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}>
+      <Box 
+        component="nav" 
+        sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
+        aria-label="Navigation drawer"
+      >
         <Drawer 
+          id="mobile-nav-drawer"
           variant="temporary" 
           open={mobileOpen} 
           onClose={handleDrawerToggle}
@@ -124,6 +181,8 @@ export default function Layout({ children }) {
           minHeight: '100vh',
           backgroundColor: '#f5f5f5'
         }}
+        role="main"
+        aria-label="Main content"
       >
         <Toolbar />
         <Container maxWidth="xl">{children}</Container>

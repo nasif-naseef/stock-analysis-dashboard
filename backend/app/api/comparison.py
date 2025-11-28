@@ -122,6 +122,20 @@ async def compare_tickers(
             status_code=400,
             detail=f"Invalid period format: {period}. Use formats like 1h, 4h, 1d, 1w"
         )
+    
+    # Validate period numeric part
+    try:
+        period_num = period[:-1]
+        if not period_num.isdigit() or int(period_num) <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid period value: {period}. Period must be a positive number followed by h, d, w, or m"
+            )
+    except (ValueError, IndexError):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid period format: {period}. Use formats like 1h, 4h, 1d, 1w"
+        )
 
     result = comparison_service.compare_tickers(
         db, tickers_list, data_type.value, period
