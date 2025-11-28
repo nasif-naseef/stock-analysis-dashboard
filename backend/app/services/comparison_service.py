@@ -83,20 +83,36 @@ def _parse_period_to_hours(period: str) -> int:
         ValueError: If period format is invalid
     """
     period = period.lower().strip()
+    
+    # Validate format first
+    if not period or len(period) < 2:
+        raise ValueError(f"Invalid period format: {period}. Use formats like 1h, 4h, 1d, 1w")
+    
+    suffix = period[-1]
+    numeric_part = period[:-1]
+    
+    # Validate numeric part
+    if not numeric_part.isdigit():
+        raise ValueError(f"Invalid period format: {period}. Use formats like 1h, 4h, 1d, 1w")
 
     try:
-        if period.endswith('h'):
-            return int(period[:-1])
-        elif period.endswith('d'):
-            return int(period[:-1]) * 24
-        elif period.endswith('w'):
-            return int(period[:-1]) * 24 * 7
-        elif period.endswith('m'):
-            return int(period[:-1]) * 24 * 30  # Approximate month
+        value = int(numeric_part)
+        if value <= 0:
+            raise ValueError(f"Period value must be positive: {period}")
+        
+        if suffix == 'h':
+            return value
+        elif suffix == 'd':
+            return value * 24
+        elif suffix == 'w':
+            return value * 24 * 7
+        elif suffix == 'm':
+            return value * 24 * 30  # Approximate month
         else:
-            # Default to treating as hours
-            return int(period)
-    except ValueError:
+            raise ValueError(f"Invalid period suffix: {suffix}. Use h, d, w, or m")
+    except ValueError as e:
+        if "Invalid" in str(e) or "positive" in str(e):
+            raise
         raise ValueError(f"Invalid period format: {period}. Use formats like 1h, 4h, 1d, 1w")
 
 

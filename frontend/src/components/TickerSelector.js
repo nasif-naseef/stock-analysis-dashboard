@@ -23,11 +23,32 @@ export default function TickerSelector({
 }) {
   const [searchTerm, setSearchTerm] = React.useState('');
   const [open, setOpen] = React.useState(false);
+  const searchTimeoutRef = React.useRef(null);
 
   const handleChange = (event) => {
     const newValue = event.target.value;
     onChange(newValue);
   };
+
+  // Debounced search handler
+  const handleSearchChange = React.useCallback((e) => {
+    const value = e.target.value;
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      setSearchTerm(value);
+    }, 200);
+  }, []);
+
+  // Cleanup timeout on unmount
+  React.useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Filter tickers based on search term
   const filteredTickers = React.useMemo(() => {
@@ -125,8 +146,8 @@ export default function TickerSelector({
             <TextField
               size="small"
               placeholder="Search tickers..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              defaultValue=""
+              onChange={handleSearchChange}
               onKeyDown={(e) => e.stopPropagation()}
               onClick={(e) => e.stopPropagation()}
               fullWidth

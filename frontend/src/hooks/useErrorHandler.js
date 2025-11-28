@@ -140,7 +140,7 @@ export function useErrorHandler(config = {}) {
             ? options.retryDelay * Math.pow(2, attempts - 1)
             : options.retryDelay;
 
-          await new Promise(resolve => {
+          await new Promise((resolve, reject) => {
             retryTimer.current = setTimeout(resolve, delay);
           });
         } else {

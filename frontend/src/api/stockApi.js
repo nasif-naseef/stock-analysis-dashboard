@@ -44,11 +44,6 @@ const retryWithDelay = async (fn, retries = MAX_RETRIES, delay = RETRY_DELAY) =>
  */
 api.interceptors.request.use(
   (config) => {
-    // Add timestamp to prevent caching issues
-    config.params = {
-      ...config.params,
-      _t: Date.now(),
-    };
     return config;
   },
   (error) => {

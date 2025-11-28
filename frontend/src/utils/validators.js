@@ -27,14 +27,19 @@ export const normalizeTicker = (ticker) => {
 };
 
 /**
+ * Valid period options for time range selection
+ */
+export const VALID_PERIODS = ['1h', '2h', '4h', '6h', '12h', '1d', '1w', '1m'];
+
+/**
  * Validate time range format
- * Valid formats: 1h, 2h, 4h, 6h, 12h, 1d, 1w, 1m
+ * Valid formats: 1h, 2h, 4h, 6h, 12h, 1d, 1w, 1m (no leading zeros)
  * @param {string} range - The time range to validate
  * @returns {boolean} - True if valid, false otherwise
  */
 export const isValidTimeRange = (range) => {
   if (!range || typeof range !== 'string') return false;
-  const pattern = /^[1-9][0-9]?[hdwm]$/i;
+  const pattern = /^[1-9][0-9]*[hdwm]$/i;
   return pattern.test(range.trim());
 };
 
@@ -45,8 +50,9 @@ export const isValidTimeRange = (range) => {
  */
 export const isValidPeriod = (period) => {
   if (!period || typeof period !== 'string') return false;
-  const validPeriods = ['1h', '2h', '4h', '6h', '12h', '1d', '1w', '1m'];
-  return validPeriods.includes(period.toLowerCase().trim());
+  // Use regex validation and also accept pre-defined valid periods
+  const normalizedPeriod = period.toLowerCase().trim();
+  return VALID_PERIODS.includes(normalizedPeriod) || isValidTimeRange(period);
 };
 
 /**
