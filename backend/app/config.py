@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     TRADING_CENTRAL_TOKEN: str = ""
     
     # Tickers Configuration
-    TICKERS: str = "AAPL,TSLA,NVDA"
+    TICKERS: str = "AAPL,TSLA,NVDA,GOOGL,MSFT"
     
     # Individual ticker configurations (raw dict for Pydantic)
     TICKER_CONFIGS: Dict[str, Dict[str, str]] = {
@@ -49,6 +49,16 @@ class Settings(BaseSettings):
             "exchange": "NASDAQ",
             "tr_v4_id": "EQ-0C00000BXN",
             "tr_v3_id": "US-124689"
+        },
+        "GOOGL": {
+            "exchange": "NASDAQ",
+            "tr_v4_id": "EQ-0C00002XX4",
+            "tr_v3_id": "US-129479"
+        },
+        "MSFT": {
+            "exchange": "NASDAQ",
+            "tr_v4_id": "EQ-0C00000D3H",
+            "tr_v3_id": "US-124040"
         }
     }
     

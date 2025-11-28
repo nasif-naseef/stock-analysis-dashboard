@@ -47,6 +47,10 @@ export default function Comparison() {
 
   const tickersComparison = tickersComparisonData?.data || {};
   const periodsComparison = periodsComparisonData?.data || {};
+  
+  // Safely get tickers array with proper null checking
+  const tickersList = Array.isArray(tickersComparison?.tickers) ? tickersComparison.tickers : [];
+  const comparisonsList = Array.isArray(periodsComparison?.comparisons) ? periodsComparison.comparisons : [];
 
   const handleExport = (format) => {
     const data = comparisonMode === 'tickers' ? tickersComparison : periodsComparison;
@@ -61,19 +65,20 @@ export default function Comparison() {
       a.click();
       URL.revokeObjectURL(url);
     } else if (format === 'csv') {
-      // Simple CSV export
+      // Simple CSV export with safe array access
       let csv = '';
-      if (comparisonMode === 'tickers' && tickersComparison.tickers) {
+      if (comparisonMode === 'tickers' && tickersList.length > 0) {
         csv = 'Ticker,Metric,Current,Previous,Change,% Change,Trend\n';
-        tickersComparison.tickers.forEach(ticker => {
-          (ticker.comparisons || []).forEach(comp => {
-            csv += `${ticker.ticker},${comp.metric},${comp.current_value},${comp.previous_value},${comp.absolute_change},${comp.percent_change},${comp.trend}\n`;
+        tickersList.forEach(ticker => {
+          const comparisons = Array.isArray(ticker?.comparisons) ? ticker.comparisons : [];
+          comparisons.forEach(comp => {
+            csv += `${ticker?.ticker || 'N/A'},${comp?.metric || 'N/A'},${comp?.current_value ?? 'N/A'},${comp?.previous_value ?? 'N/A'},${comp?.absolute_change ?? 'N/A'},${comp?.percent_change ?? 'N/A'},${comp?.trend || 'N/A'}\n`;
           });
         });
-      } else if (periodsComparison.comparisons) {
+      } else if (comparisonsList.length > 0) {
         csv = 'Metric,Current,Previous,Change,% Change,Trend\n';
-        periodsComparison.comparisons.forEach(comp => {
-          csv += `${comp.metric},${comp.current_value},${comp.previous_value},${comp.absolute_change},${comp.percent_change},${comp.trend}\n`;
+        comparisonsList.forEach(comp => {
+          csv += `${comp?.metric || 'N/A'},${comp?.current_value ?? 'N/A'},${comp?.previous_value ?? 'N/A'},${comp?.absolute_change ?? 'N/A'},${comp?.percent_change ?? 'N/A'},${comp?.trend || 'N/A'}\n`;
         });
       }
       const blob = new Blob([csv], { type: 'text/csv' });
@@ -189,31 +194,31 @@ export default function Comparison() {
                 </Typography>
               </Paper>
             </Grid>
-          ) : tickersComparison.tickers ? (
-            tickersComparison.tickers.map(ticker => (
-              <Grid item xs={12} key={ticker.ticker}>
+          ) : tickersList.length > 0 ? (
+            tickersList.map((ticker, index) => (
+              <Grid item xs={12} key={ticker?.ticker || `ticker-${index}`}>
                 <Paper sx={{ p: 2 }}>
                   <Box display="flex" alignItems="center" gap={2} mb={2}>
-                    <Typography variant="h6">{ticker.ticker}</Typography>
+                    <Typography variant="h6">{ticker?.ticker || 'N/A'}</Typography>
                     <Chip 
-                      label={ticker.overall_trend || 'N/A'} 
+                      label={ticker?.overall_trend || 'N/A'} 
                       color={
-                        ticker.overall_trend === 'up' ? 'success' : 
-                        ticker.overall_trend === 'down' ? 'error' : 'default'
+                        ticker?.overall_trend === 'up' ? 'success' : 
+                        ticker?.overall_trend === 'down' ? 'error' : 'default'
                       }
                       size="small"
                     />
                   </Box>
                   <Divider sx={{ mb: 2 }} />
                   <ComparisonTable
-                    data={ticker.comparisons?.map(c => ({
-                      metric: c.metric,
-                      current: c.current_value,
-                      previous: c.previous_value,
-                      change: c.absolute_change,
-                      percentChange: c.percent_change,
-                      trend: c.trend
-                    })) || []}
+                    data={(Array.isArray(ticker?.comparisons) ? ticker.comparisons : []).map(c => ({
+                      metric: c?.metric || 'N/A',
+                      current: c?.current_value,
+                      previous: c?.previous_value,
+                      change: c?.absolute_change,
+                      percentChange: c?.percent_change,
+                      trend: c?.trend
+                    }))}
                     columns={[
                       { id: 'metric', label: 'Metric', align: 'left' },
                       { id: 'current', label: 'Current', align: 'right' },
@@ -231,28 +236,28 @@ export default function Comparison() {
             <Grid item xs={12}>
               <Paper sx={{ p: 3, textAlign: 'center' }}>
                 <Typography color="textSecondary">
-                  No comparison data available
+                  No comparison data available. Select tickers and ensure data has been collected.
                 </Typography>
               </Paper>
             </Grid>
           )}
 
           {/* Side-by-side summary */}
-          {tickersComparison.tickers && tickersComparison.tickers.length >= 2 && (
+          {tickersList.length >= 2 && (
             <Grid item xs={12}>
               <Paper sx={{ p: 2 }}>
                 <Typography variant="h6" gutterBottom>Summary Comparison</Typography>
                 <Divider sx={{ mb: 2 }} />
                 <Grid container spacing={2}>
-                  {tickersComparison.tickers.map(ticker => (
-                    <Grid item xs={12} sm={6} md={12 / tickersComparison.tickers.length} key={ticker.ticker}>
+                  {tickersList.map((ticker, index) => (
+                    <Grid item xs={12} sm={6} md={12 / tickersList.length} key={ticker?.ticker || `summary-${index}`}>
                       <Paper sx={{ p: 2, backgroundColor: '#f5f5f5' }}>
-                        <Typography variant="subtitle1" fontWeight="bold">{ticker.ticker}</Typography>
+                        <Typography variant="subtitle1" fontWeight="bold">{ticker?.ticker || 'N/A'}</Typography>
                         <Typography variant="body2">
-                          Trend: {ticker.overall_trend || 'N/A'}
+                          Trend: {ticker?.overall_trend || 'N/A'}
                         </Typography>
                         <Typography variant="body2">
-                          Changes: {ticker.positive_changes || 0} positive, {ticker.negative_changes || 0} negative
+                          Changes: {ticker?.positive_changes || 0} positive, {ticker?.negative_changes || 0} negative
                         </Typography>
                       </Paper>
                     </Grid>
@@ -270,24 +275,24 @@ export default function Comparison() {
               <Box display="flex" alignItems="center" gap={2} mb={2}>
                 <Typography variant="h6">{singleTicker} - Historical Comparison</Typography>
                 <Chip 
-                  label={periodsComparison.overall_trend || 'N/A'} 
+                  label={periodsComparison?.overall_trend || 'N/A'} 
                   color={
-                    periodsComparison.overall_trend === 'up' ? 'success' : 
-                    periodsComparison.overall_trend === 'down' ? 'error' : 'default'
+                    periodsComparison?.overall_trend === 'up' ? 'success' : 
+                    periodsComparison?.overall_trend === 'down' ? 'error' : 'default'
                   }
                   size="small"
                 />
               </Box>
               <Divider sx={{ mb: 2 }} />
-              {periodsComparison.comparisons ? (
+              {comparisonsList.length > 0 ? (
                 <ComparisonTable
-                  data={periodsComparison.comparisons.map(c => ({
-                    metric: c.metric,
-                    current: c.current_value,
-                    previous: c.previous_value,
-                    change: c.absolute_change,
-                    percentChange: c.percent_change,
-                    trend: c.trend
+                  data={comparisonsList.map(c => ({
+                    metric: c?.metric || 'N/A',
+                    current: c?.current_value,
+                    previous: c?.previous_value,
+                    change: c?.absolute_change,
+                    percentChange: c?.percent_change,
+                    trend: c?.trend
                   }))}
                   columns={[
                     { id: 'metric', label: 'Metric', align: 'left' },
