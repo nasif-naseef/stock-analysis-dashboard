@@ -657,6 +657,289 @@ class TestResponseBuilder:
         assert result["sentiment"] is None
         assert result["trend_action"] is None
         assert result["trend_value"] is None
+    
+    def test_build_article_distribution_with_topics_dataframe(self):
+        """Test article distribution parsing using pandas DataFrame with column sums"""
+        from app.utils.data_processor import ResponseBuilder
+        
+        builder = ResponseBuilder()
+        
+        # Notebook format with topics containing news, social, web, total columns
+        raw_data = {
+            "topics": [
+                {"name": "Topic A", "news": 10, "social": 20, "web": 5, "total": 35},
+                {"name": "Topic B", "news": 15, "social": 25, "web": 10, "total": 50},
+            ]
+        }
+        
+        result = builder.build_article_distribution(raw_data, "AAPL")
+        
+        assert result["ticker"] == "AAPL"
+        assert result["news_count"] == 25  # 10 + 15
+        assert result["social_count"] == 45  # 20 + 25
+        assert result["web_count"] == 15  # 5 + 10
+        assert result["total_articles"] == 85  # 35 + 50
+    
+    def test_build_article_distribution_empty_topics(self):
+        """Test article distribution with empty topics"""
+        from app.utils.data_processor import ResponseBuilder
+        
+        builder = ResponseBuilder()
+        
+        result = builder.build_article_distribution({"topics": []}, "TEST")
+        
+        assert result["ticker"] == "TEST"
+        assert result["total_articles"] == 0
+        assert result["news_count"] == 0
+        assert result["social_count"] == 0
+        assert result["web_count"] == 0
+    
+    def test_build_article_sentiment_with_nested_structure(self):
+        """Test article sentiment parsing with nested arrays"""
+        from app.utils.data_processor import ResponseBuilder
+        
+        builder = ResponseBuilder()
+        
+        # Notebook format with sentiment_responses structure
+        sentiment_responses = {
+            "sentiment": [{"sentiment": {"id": 1, "label": "positive", "value": 75}}],
+            "subjectivity": [{"subjectivity": {"id": 2, "label": "subjective", "value": 60}}],
+            "confidence": [{"confidence": {"id": 3, "name": "high"}}]
+        }
+        
+        result = builder.build_article_sentiment(sentiment_responses, "AAPL")
+        
+        assert result["ticker"] == "AAPL"
+        assert result["sentiment_id"] == 1
+        assert result["sentiment_label"] == "positive"
+        assert result["sentiment_value"] == 75
+        assert result["subjectivity_id"] == 2
+        assert result["subjectivity_label"] == "subjective"
+        assert result["subjectivity_value"] == 60
+        assert result["confidence_id"] == 3
+        assert result["confidence_name"] == "high"
+    
+    def test_build_article_sentiment_empty_data(self):
+        """Test article sentiment with empty arrays"""
+        from app.utils.data_processor import ResponseBuilder
+        
+        builder = ResponseBuilder()
+        
+        result = builder.build_article_sentiment({}, "TEST")
+        
+        assert result["ticker"] == "TEST"
+        assert result["sentiment_id"] is None
+        assert result["sentiment_label"] is None
+        assert result["sentiment_value"] is None
+    
+    def test_build_support_resistance_with_prefixed_keys(self):
+        """Test support/resistance parsing with support10, resistance10 keys"""
+        from app.utils.data_processor import ResponseBuilder
+        
+        builder = ResponseBuilder()
+        
+        # Notebook format with prefixed keys
+        raw_item = {
+            "instrument": {"symbol": "AAPL", "exchange": "NASDAQ"},
+            "date": "2024-01-15",
+            "support": {
+                "support10": 150.5,
+                "support20": 148.0,
+                "support40": 145.0,
+                "support100": 140.0,
+                "support250": 135.0,
+                "support500": 130.0
+            },
+            "resistance": {
+                "resistance10": 155.5,
+                "resistance20": 158.0,
+                "resistance40": 160.0,
+                "resistance100": 165.0,
+                "resistance250": 170.0,
+                "resistance500": 175.0
+            }
+        }
+        
+        result = builder.build_support_resistance(raw_item)
+        
+        assert result["symbol"] == "AAPL"
+        assert result["date"] == "2024-01-15"
+        assert result["exchange"] == "NASDAQ"
+        assert result["support_10"] == 150.5
+        assert result["resistance_10"] == 155.5
+        assert result["support_20"] == 148.0
+        assert result["resistance_20"] == 158.0
+    
+    def test_build_support_resistance_empty_data(self):
+        """Test support/resistance with empty data"""
+        from app.utils.data_processor import ResponseBuilder
+        
+        builder = ResponseBuilder()
+        
+        result = builder.build_support_resistance({})
+        
+        assert result["symbol"] == "N/A"
+        assert result["date"] == "N/A"
+        assert result["support_10"] is None
+        assert result["resistance_10"] is None
+    
+    def test_build_stop_loss_uses_first_element(self):
+        """Test stop loss uses first element [0] not last element [-1]"""
+        from app.utils.data_processor import ResponseBuilder
+        
+        builder = ResponseBuilder()
+        
+        raw_data = {
+            "stops": [100.0, 95.0, 90.0],  # First should be used
+            "timestamps": ["2024-01-01", "2024-01-02", "2024-01-03"]
+        }
+        
+        result = builder.build_stop_loss(raw_data, "AAPL")
+        
+        assert result["ticker"] == "AAPL"
+        assert result["recommended_stop_price"] == 100.0  # First element
+        assert result["calculation_timestamp"] == "2024-01-01"  # First element
+    
+    def test_build_stop_loss_empty_data(self):
+        """Test stop loss with empty arrays"""
+        from app.utils.data_processor import ResponseBuilder
+        
+        builder = ResponseBuilder()
+        
+        result = builder.build_stop_loss({}, "TEST")
+        
+        assert result["ticker"] == "TEST"
+        assert result["recommended_stop_price"] is None
+        assert result["calculation_timestamp"] is None
+    
+    def test_build_chart_events_dataframe_with_events_key(self):
+        """Test chart events returns DataFrame with events key check"""
+        from app.utils.data_processor import ResponseBuilder
+        import pandas as pd
+        
+        builder = ResponseBuilder()
+        
+        raw_data = {
+            "events": [
+                {"id": 1, "type": "breakout", "price": 150.0},
+                {"id": 2, "type": "breakdown", "price": 145.0}
+            ]
+        }
+        
+        result = builder.build_chart_events_dataframe(raw_data, "AAPL")
+        
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 2
+        assert "ticker" in result.columns
+        assert "is_active" in result.columns
+        assert result["ticker"].iloc[0] == "AAPL"
+    
+    def test_build_chart_events_dataframe_no_events_key(self):
+        """Test chart events returns empty DataFrame when no events key"""
+        from app.utils.data_processor import ResponseBuilder
+        import pandas as pd
+        
+        builder = ResponseBuilder()
+        
+        result = builder.build_chart_events_dataframe({}, "TEST")
+        
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 0
+    
+    def test_build_technical_summaries_dataframe_with_categories(self):
+        """Test technical summaries with instrument items and categories"""
+        from app.utils.data_processor import ResponseBuilder
+        import pandas as pd
+        
+        builder = ResponseBuilder()
+        
+        raw_data = {
+            "scores": [
+                {
+                    "instrument": {
+                        "symbol": "AAPL",
+                        "name": "Apple Inc",
+                        "exchange": "NASDAQ",
+                        "isin": "US0378331005",
+                        "instrumentId": "123"
+                    },
+                    "intermediate": {"score": 7.5, "signal": "buy"},
+                    "long": {"score": 8.0, "signal": "strong_buy"}
+                }
+            ]
+        }
+        
+        result = builder.build_technical_summaries_dataframe(raw_data)
+        
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 6  # 6 categories per instrument
+        assert "symbol" in result.columns
+        assert "category" in result.columns
+        assert "AAPL" in result["symbol"].values
+    
+    def test_build_technical_summaries_dataframe_no_scores(self):
+        """Test technical summaries with no scores key"""
+        from app.utils.data_processor import ResponseBuilder
+        import pandas as pd
+        
+        builder = ResponseBuilder()
+        
+        result = builder.build_technical_summaries_dataframe({})
+        
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 0
+    
+    def test_build_quantamental_timeseries_dataframe_all_columns(self):
+        """Test quantamental timeseries includes all score columns"""
+        from app.utils.data_processor import ResponseBuilder
+        import pandas as pd
+        
+        builder = ResponseBuilder()
+        
+        raw_data = {
+            "timestamps": ["2024-01-01", "2024-01-02"],
+            "quantamental": [75, 80],
+            "growth": [70, 72],
+            "income": [65, 68],
+            "momentum": [80, 85],
+            "quality": [90, 92],
+            "valuation": [60, 62]
+        }
+        
+        result = builder.build_quantamental_timeseries_dataframe(raw_data)
+        
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 2
+        assert "timestamp" in result.columns
+        assert "quantamental_score" in result.columns
+        assert "growth_score" in result.columns
+        assert "income_score" in result.columns
+        assert "momentum_score" in result.columns
+        assert "quality_score" in result.columns
+        assert "valuation_score" in result.columns
+    
+    def test_build_quantamental_timeseries_dataframe_with_list(self):
+        """Test quantamental timeseries handles list input by using first element"""
+        from app.utils.data_processor import ResponseBuilder
+        import pandas as pd
+        
+        builder = ResponseBuilder()
+        
+        raw_data = [{
+            "timestamps": ["2024-01-01"],
+            "quantamental": [75],
+            "growth": [70],
+            "income": [65],
+            "momentum": [80],
+            "quality": [90],
+            "valuation": [60]
+        }]
+        
+        result = builder.build_quantamental_timeseries_dataframe(raw_data)
+        
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 1
+        assert "quantamental_score" in result.columns
 
 
 if __name__ == "__main__":
