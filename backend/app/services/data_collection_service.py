@@ -129,16 +129,21 @@ class DataCollectionService:
             parsed_data = self.response_builder.build_analyst_consensus(raw_data, ticker)
             
             # Create database record - map notebook-style fields to legacy database fields
+            # Note: Some fields are not available in the notebook-style response
+            buy_ratings = parsed_data.get("buy_ratings")
+            hold_ratings = parsed_data.get("hold_ratings")
+            sell_ratings = parsed_data.get("sell_ratings")
+            
             db_record = AnalystRating(
                 ticker=parsed_data["ticker"],
                 timestamp=get_utc_now(),
-                strong_buy_count=0,  # Not available in notebook-style response
-                buy_count=parsed_data.get("buy_ratings") or 0,
-                hold_count=parsed_data.get("hold_ratings") or 0,
-                sell_count=parsed_data.get("sell_ratings") or 0,
-                strong_sell_count=0,  # Not available in notebook-style response
-                total_analysts=parsed_data.get("total_ratings") or 0,
-                consensus_rating=None,  # Would need determine_rating() call
+                strong_buy_count=None,  # Not available in notebook-style response
+                buy_count=buy_ratings,
+                hold_count=hold_ratings,
+                sell_count=sell_ratings,
+                strong_sell_count=None,  # Not available in notebook-style response
+                total_analysts=parsed_data.get("total_ratings"),
+                consensus_rating=None,  # Not available in notebook-style response
                 consensus_score=parsed_data.get("consensus_rating_score"),
                 avg_price_target=parsed_data.get("price_target_average"),
                 high_price_target=parsed_data.get("price_target_high"),
@@ -214,14 +219,14 @@ class DataCollectionService:
             db_record = NewsSentiment(
                 ticker=parsed_data["ticker"],
                 timestamp=get_utc_now(),
-                sentiment=None,  # Would need determine_sentiment() call
+                sentiment=None,  # Not available in notebook-style response
                 sentiment_score=sentiment_score,
                 buzz_score=None,  # Not available in notebook-style response
                 news_score=None,  # Not available in notebook-style response
-                total_articles=0,  # Not available in notebook-style response
-                positive_articles=0,  # Not available in notebook-style response
-                negative_articles=0,  # Not available in notebook-style response
-                neutral_articles=0,  # Not available in notebook-style response
+                total_articles=None,  # Not available in notebook-style response
+                positive_articles=None,  # Not available in notebook-style response
+                negative_articles=None,  # Not available in notebook-style response
+                neutral_articles=None,  # Not available in notebook-style response
                 sector_sentiment=parsed_data.get("sector_bullish_score"),
                 sector_avg=parsed_data.get("sector_bearish_score"),
                 source="tipranks",
@@ -454,11 +459,11 @@ class DataCollectionService:
             db_record = CrowdStatistics(
                 ticker=parsed_data["ticker"],
                 timestamp=get_utc_now(),
-                crowd_sentiment=None,  # Would need determine_sentiment() call based on score
+                crowd_sentiment=None,  # Not available in notebook-style response
                 sentiment_score=parsed_data.get("score"),
-                mentions_count=0,  # Not available in notebook-style response
+                mentions_count=None,  # Not available in notebook-style response
                 mentions_change=None,  # Not available in notebook-style response
-                impressions=0,  # Not available in notebook-style response
+                impressions=None,  # Not available in notebook-style response
                 engagement_rate=None,  # Not available in notebook-style response
                 bullish_percent=None,  # Not available in notebook-style response
                 bearish_percent=None,  # Not available in notebook-style response
@@ -466,8 +471,8 @@ class DataCollectionService:
                 trending_score=None,  # Not available in notebook-style response
                 rank_day=None,  # Not available in notebook-style response
                 rank_week=None,  # Not available in notebook-style response
-                total_posts=0,  # Not available in notebook-style response
-                unique_users=0,  # Not available in notebook-style response
+                total_posts=None,  # Not available in notebook-style response
+                unique_users=None,  # Not available in notebook-style response
                 avg_sentiment_post=None,  # Not available in notebook-style response
                 source="tipranks",
                 raw_data=raw_data
