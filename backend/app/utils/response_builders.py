@@ -292,38 +292,44 @@ class ResponseBuilder:
             return {"ticker": ticker, "error": str(e)}
     
     @staticmethod
-    def build_quantamental_timeseries_dataframe(raw_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def build_quantamental_timeseries_dataframe(raw_data: Dict[str, Any]) -> Any:
         """
-        Build quantamental timeseries data.
+        Build quantamental timeseries DataFrame matching notebook API structure.
         
-        Returns DataFrame-like structure with timestamps and scores
+        Returns DataFrame with timestamps and all score columns
         
         Args:
             raw_data: Raw API response
             
         Returns:
-            List of dictionaries with timeseries data
+            pandas DataFrame with timeseries data
         """
         try:
-            if isinstance(raw_data, list):
-                return raw_data
+            import pandas as pd
+            from app.utils.data_processor import DataFrameOptimizer
             
-            raw_data = raw_data or {}
-            timestamps = raw_data.get('timestamps', [])
-            scores = raw_data.get('scores', [])
-            
-            results = []
-            for i, ts in enumerate(timestamps):
-                score = scores[i] if i < len(scores) else None
-                results.append({
-                    "timestamp": ts,
-                    "score": safe_float(score),
-                })
-            
-            return results
+            timeseries_data = raw_data[0] if isinstance(raw_data, list) and len(raw_data) > 0 else raw_data or {}
+
+            df = pd.DataFrame({
+                'timestamp': timeseries_data.get('timestamps', []),
+                'quantamental_score': timeseries_data.get('quantamental', []),
+                'growth_score': timeseries_data.get('growth', []),
+                'income_score': timeseries_data.get('income', []),
+                'momentum_score': timeseries_data.get('momentum', []),
+                'quality_score': timeseries_data.get('quality', []),
+                'valuation_score': timeseries_data.get('valuation', [])
+            })
+
+            if len(df) > 0:
+                df = DataFrameOptimizer.optimize_memory(df)
+
+            return df
+        except ImportError:
+            logger.warning("pandas not available for quantamental timeseries dataframe")
+            return []
         except Exception as e:
             logger.error(f"Error building quantamental timeseries dataframe: {e}")
-            return []
+            raise
     
     @staticmethod
     def build_target_price(raw_data: Dict[str, Any], ticker: str) -> Dict[str, Any]:
