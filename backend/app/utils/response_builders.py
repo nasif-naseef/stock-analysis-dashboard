@@ -356,9 +356,9 @@ class ResponseBuilder:
     @staticmethod
     def build_article_distribution(raw_data: Dict[str, Any], ticker: str) -> Dict[str, Any]:
         """
-        Build article distribution data.
+        Build article distribution data matching notebook API structure.
         
-        Extracts from: topics
+        Extracts from: topics using pandas DataFrame for summing columns
         
         Args:
             raw_data: Raw API response
@@ -368,36 +368,36 @@ class ResponseBuilder:
             Dictionary with parsed article distribution fields
         """
         try:
-            if isinstance(raw_data, list):
-                raw_data = raw_data[0] if raw_data else {}
+            import pandas as pd
             
             topics = raw_data.get('topics', []) or []
-            
-            news_count = 0
-            social_count = 0
-            web_count = 0
-            
-            for topic in topics:
-                topic_type = topic.get('type', '').lower()
-                count = safe_int(topic.get('count', 0)) or 0
-                if topic_type == 'news':
-                    news_count = count
-                elif topic_type == 'social':
-                    social_count = count
-                elif topic_type == 'web':
-                    web_count = count
-            
-            total = news_count + social_count + web_count
-            
+            if not topics:
+                return {
+                    "ticker": ticker,
+                    "total_articles": 0,
+                    "news_count": 0,
+                    "news_percentage": 0,
+                    "social_count": 0,
+                    "social_percentage": 0,
+                    "web_count": 0,
+                    "web_percentage": 0,
+                }
+
+            topics_df = pd.DataFrame(topics)
+            news_count = int(topics_df['news'].sum()) if 'news' in topics_df.columns else 0
+            social_count = int(topics_df['social'].sum()) if 'social' in topics_df.columns else 0
+            web_count = int(topics_df['web'].sum()) if 'web' in topics_df.columns else 0
+            total_count = int(topics_df['total'].sum()) if 'total' in topics_df.columns else 0
+
             return {
                 "ticker": ticker,
-                "total_articles": total,
+                "total_articles": total_count,
                 "news_count": news_count,
-                "news_percentage": (news_count / total * 100) if total > 0 else 0.0,
+                "news_percentage": (news_count / total_count * 100) if total_count > 0 else 0,
                 "social_count": social_count,
-                "social_percentage": (social_count / total * 100) if total > 0 else 0.0,
+                "social_percentage": (social_count / total_count * 100) if total_count > 0 else 0,
                 "web_count": web_count,
-                "web_percentage": (web_count / total * 100) if total > 0 else 0.0,
+                "web_percentage": (web_count / total_count * 100) if total_count > 0 else 0,
             }
         except Exception as e:
             logger.error(f"Error building article distribution: {e}")
@@ -406,36 +406,52 @@ class ResponseBuilder:
     @staticmethod
     def build_article_sentiment(sentiment_responses: Dict[str, Any], ticker: str) -> Dict[str, Any]:
         """
-        Build article sentiment data.
+        Build article sentiment data matching notebook API structure.
         
-        Handles sentiment, subjectivity, confidence fields
+        Handles sentiment, subjectivity, confidence fields from separate response arrays
         
         Args:
-            sentiment_responses: Raw API response
+            sentiment_responses: Dict containing 'sentiment', 'subjectivity', 'confidence' arrays
             ticker: Stock ticker symbol
             
         Returns:
             Dictionary with parsed article sentiment fields
         """
         try:
-            if isinstance(sentiment_responses, list):
-                sentiment_responses = sentiment_responses[0] if sentiment_responses else {}
-            sentiment_responses = sentiment_responses or {}
-            
-            sentiment = sentiment_responses.get('sentiment', {}) or {}
-            subjectivity = sentiment_responses.get('subjectivity', {}) or {}
-            confidence = sentiment_responses.get('confidence', {}) or {}
-            
+            sentiment_id = sentiment_label = sentiment_value = None
+            subjectivity_id = subjectivity_label = subjectivity_value = None
+            confidence_id = confidence_name = None
+
+            if sentiment_responses.get('sentiment') and len(sentiment_responses['sentiment']) > 0:
+                sentiment_data = sentiment_responses['sentiment'][0].get('sentiment', {}) or {}
+                if sentiment_data:
+                    sentiment_id = sentiment_data.get('id')
+                    sentiment_label = sentiment_data.get('label')
+                    sentiment_value = sentiment_data.get('value')
+
+            if sentiment_responses.get('subjectivity') and len(sentiment_responses['subjectivity']) > 0:
+                subjectivity_data = sentiment_responses['subjectivity'][0].get('subjectivity', {}) or {}
+                if subjectivity_data:
+                    subjectivity_id = subjectivity_data.get('id')
+                    subjectivity_label = subjectivity_data.get('label')
+                    subjectivity_value = subjectivity_data.get('value')
+
+            if sentiment_responses.get('confidence') and len(sentiment_responses['confidence']) > 0:
+                confidence_data = sentiment_responses['confidence'][0].get('confidence', {}) or {}
+                if confidence_data:
+                    confidence_id = confidence_data.get('id')
+                    confidence_name = confidence_data.get('name')
+
             return {
                 "ticker": ticker,
-                "sentiment_id": sentiment.get('id'),
-                "sentiment_label": sentiment.get('label'),
-                "sentiment_value": safe_int(sentiment.get('value')),
-                "subjectivity_id": subjectivity.get('id'),
-                "subjectivity_label": subjectivity.get('label'),
-                "subjectivity_value": safe_int(subjectivity.get('value')),
-                "confidence_id": confidence.get('id'),
-                "confidence_name": confidence.get('name'),
+                "sentiment_id": sentiment_id,
+                "sentiment_label": sentiment_label,
+                "sentiment_value": sentiment_value,
+                "subjectivity_id": subjectivity_id,
+                "subjectivity_label": subjectivity_label,
+                "subjectivity_value": subjectivity_value,
+                "confidence_id": confidence_id,
+                "confidence_name": confidence_name,
             }
         except Exception as e:
             logger.error(f"Error building article sentiment: {e}")
@@ -444,7 +460,7 @@ class ResponseBuilder:
     @staticmethod
     def build_support_resistance(raw_item: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Build support/resistance data.
+        Build support/resistance data matching notebook API structure.
         
         Extracts from: instrument, support, resistance data
         
@@ -458,25 +474,25 @@ class ResponseBuilder:
             raw_item = raw_item or {}
             
             instrument = raw_item.get('instrument', {}) or {}
-            support = raw_item.get('support', {}) or {}
-            resistance = raw_item.get('resistance', {}) or {}
+            support_data = raw_item.get('support', {}) or {}
+            resistance_data = raw_item.get('resistance', {}) or {}
             
             return {
-                "symbol": instrument.get('symbol', ''),
-                "date": raw_item.get('date', ''),
-                "exchange": instrument.get('exchange', ''),
-                "support_10": safe_float(support.get('10')),
-                "resistance_10": safe_float(resistance.get('10')),
-                "support_20": safe_float(support.get('20')),
-                "resistance_20": safe_float(resistance.get('20')),
-                "support_40": safe_float(support.get('40')),
-                "resistance_40": safe_float(resistance.get('40')),
-                "support_100": safe_float(support.get('100')),
-                "resistance_100": safe_float(resistance.get('100')),
-                "support_250": safe_float(support.get('250')),
-                "resistance_250": safe_float(resistance.get('250')),
-                "support_500": safe_float(support.get('500')),
-                "resistance_500": safe_float(resistance.get('500')),
+                "symbol": instrument.get('symbol', 'N/A'),
+                "date": raw_item.get('date', 'N/A'),
+                "exchange": instrument.get('exchange', 'N/A'),
+                "support_10": safe_float(support_data.get('support10')),
+                "resistance_10": safe_float(resistance_data.get('resistance10')),
+                "support_20": safe_float(support_data.get('support20')),
+                "resistance_20": safe_float(resistance_data.get('resistance20')),
+                "support_40": safe_float(support_data.get('support40')),
+                "resistance_40": safe_float(resistance_data.get('resistance40')),
+                "support_100": safe_float(support_data.get('support100')),
+                "resistance_100": safe_float(resistance_data.get('resistance100')),
+                "support_250": safe_float(support_data.get('support250')),
+                "resistance_250": safe_float(resistance_data.get('resistance250')),
+                "support_500": safe_float(support_data.get('support500')),
+                "resistance_500": safe_float(resistance_data.get('resistance500')),
             }
         except Exception as e:
             logger.error(f"Error building support resistance: {e}")
@@ -491,9 +507,9 @@ class ResponseBuilder:
         tightness: str = 'Medium'
     ) -> Dict[str, Any]:
         """
-        Build stop loss data.
+        Build stop loss data matching notebook API structure.
         
-        Extracts from: stops, timestamps arrays
+        Extracts from: stops, timestamps arrays - uses first element [0]
         
         Args:
             raw_data: Raw API response
@@ -517,9 +533,9 @@ class ResponseBuilder:
             calculation_timestamp = None
             
             if stops and len(stops) > 0:
-                recommended_stop = safe_float(stops[-1])
+                recommended_stop = safe_float(stops[0])
             if timestamps and len(timestamps) > 0:
-                calculation_timestamp = timestamps[-1]
+                calculation_timestamp = timestamps[0]
             
             return {
                 "ticker": ticker,
@@ -535,108 +551,111 @@ class ResponseBuilder:
     
     @staticmethod
     def build_chart_events_dataframe(
-        raw_data: List[Dict[str, Any]],
+        raw_data: Dict[str, Any],
         ticker: str,
         is_active: bool = True
-    ) -> List[Dict[str, Any]]:
+    ) -> Any:
         """
-        Build chart events data.
+        Build chart events DataFrame matching notebook API structure.
         
-        Flattens nested event columns
+        Checks for 'events' key, flattens nested columns
         
         Args:
-            raw_data: Raw API response list
+            raw_data: Raw API response dict with 'events' key
             ticker: Stock ticker symbol
             is_active: Whether these are active events
             
         Returns:
-            List of dictionaries with flattened chart event data
+            pandas DataFrame with flattened chart event data
         """
         try:
-            if not isinstance(raw_data, list):
-                raw_data = [raw_data] if raw_data else []
+            import pandas as pd
+            from app.utils.data_processor import DataFrameOptimizer
             
-            results = []
-            for item in raw_data:
-                if not item:
-                    continue
-                    
-                event = {
-                    "ticker": ticker,
-                    "is_active": is_active,
-                    "event_id": item.get('id'),
-                    "event_type": item.get('type'),
-                    "event_name": item.get('name'),
-                    "price_period": item.get('pricePeriod'),
-                    "start_date": item.get('startDate'),
-                    "end_date": item.get('endDate'),
-                    "target_price": safe_float(item.get('targetPrice')),
-                    "start_price": safe_float(item.get('startPrice')),
-                    "end_price": safe_float(item.get('endPrice')),
-                }
-                results.append(event)
-            
-            return results
+            if not raw_data or 'events' not in raw_data:
+                return pd.DataFrame()
+
+            events_raw = raw_data['events']
+            if not events_raw:
+                return pd.DataFrame()
+
+            events_df = DataFrameOptimizer.process_batch(events_raw)
+
+            # Flatten nested columns
+            if 'dates' in events_df.columns:
+                events_df = DataFrameOptimizer.flatten_nested_columns(events_df, 'dates', 'date')
+            if 'endPrices' in events_df.columns:
+                events_df = DataFrameOptimizer.flatten_nested_columns(events_df, 'endPrices', 'endPrice')
+            if 'eventType' in events_df.columns:
+                events_df = DataFrameOptimizer.flatten_nested_columns(events_df, 'eventType', 'eventType')
+            if 'targetPrice' in events_df.columns:
+                events_df = DataFrameOptimizer.flatten_nested_columns(events_df, 'targetPrice', 'targetPrice')
+
+            if not events_df.empty:
+                events_df['ticker'] = ticker
+                events_df['is_active'] = is_active
+                events_df = DataFrameOptimizer.optimize_memory(events_df)
+
+            return events_df
+        except ImportError:
+            logger.warning("pandas not available for chart events dataframe")
+            return []
         except Exception as e:
             logger.error(f"Error building chart events dataframe: {e}")
-            return []
+            raise
     
     @staticmethod
-    def build_technical_summaries_dataframe(raw_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def build_technical_summaries_dataframe(raw_data: Dict[str, Any]) -> Any:
         """
-        Build technical summaries data.
+        Build technical summaries DataFrame matching notebook API structure.
         
-        Extracts from scores with multiple categories
+        Extracts from scores with multiple categories per instrument
         
         Args:
             raw_data: Raw API response
             
         Returns:
-            List of dictionaries with technical summary data
+            pandas DataFrame with technical summary data
         """
         try:
-            if isinstance(raw_data, list):
-                # If it's a list of instruments, return them directly
-                results = []
-                for item in raw_data:
-                    if not item:
-                        continue
-                    instrument = item.get('instrument', {}) or {}
-                    analysis = item.get('analysis', {}) or {}
-                    
-                    results.append({
-                        "symbol": instrument.get('symbol'),
-                        "name": instrument.get('name'),
-                        "exchange": instrument.get('exchange'),
-                        "isin": instrument.get('isin'),
-                        "instrumentId": instrument.get('id'),
-                        "category": analysis.get('category'),
-                        "recommendation": analysis.get('recommendation'),
-                        "signalStrength": safe_float(analysis.get('signalStrength')),
-                    })
-                return results
+            import pandas as pd
+            from app.utils.data_processor import DataFrameOptimizer
             
-            raw_data = raw_data or {}
-            scores = raw_data.get('scores', {}) or {}
-            
-            results = []
-            for category, score_data in scores.items():
-                if isinstance(score_data, dict):
-                    results.append({
-                        "category": category,
-                        "score": safe_float(score_data.get('score')),
-                        "signal": score_data.get('signal'),
-                        "trend": score_data.get('trend'),
-                    })
-                elif isinstance(score_data, (int, float)):
-                    results.append({
-                        "category": category,
-                        "score": safe_float(score_data),
-                        "signal": None,
-                        "trend": None,
-                    })
-            
-            return results
+            if not raw_data or 'scores' not in raw_data:
+                return pd.DataFrame()
+
+            scores = raw_data['scores']
+            rows = []
+
+            categories = ['intermediate', 'intradayIntermediate', 'intradayLong', 'intradayShort', 'long', 'short']
+
+            for item in scores:
+                inst = item.get('instrument', {})
+
+                for cat in categories:
+                    block = item.get(cat, {})
+
+                    row = {
+                        'symbol': inst.get('symbol', 'N/A'),
+                        'name': inst.get('name', 'N/A'),
+                        'exchange': inst.get('exchange', 'N/A'),
+                        'isin': inst.get('isin', 'N/A'),
+                        'instrumentId': inst.get('instrumentId', 'N/A'),
+                        'category': cat,
+                    }
+
+                    row.update(block)
+                    rows.append(row)
+
+            if rows:
+                df = pd.DataFrame(rows)
+                df = DataFrameOptimizer.optimize_memory(df)
+                return df
+
+            return pd.DataFrame()
+        except ImportError:
+            logger.warning("pandas not available for technical summaries dataframe")
+            return []
         except Exception as e:
             logger.error(f"Error building technical summaries dataframe: {e}")
-            return []
+            raise
