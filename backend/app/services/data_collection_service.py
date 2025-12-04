@@ -6,7 +6,8 @@ from TipRanks and Trading Central APIs, processes it, and stores it in the datab
 """
 import time
 import logging
-from typing import Dict, Any, Optional, List
+import functools
+from typing import Dict, Any, Optional, List, Callable
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -30,6 +31,65 @@ from app.utils.data_processor import ResponseBuilder
 from app.utils.helpers import get_utc_now, is_valid_ticker, normalize_ticker
 
 logger = logging.getLogger(__name__)
+
+
+def collection_wrapper(data_type: str, source: str, api_endpoint: str) -> Callable:
+    """
+    Decorator to handle common collection logic for data collection methods.
+    
+    This decorator:
+    - Normalizes ticker symbol
+    - Times the collection operation
+    - Handles error logging and rollback
+    - Logs collection results to database
+    - Returns standardized response format
+    
+    Args:
+        data_type: Type of data being collected (e.g., "analyst_ratings")
+        source: Data source name (e.g., "tipranks", "trading_central")
+        api_endpoint: API endpoint constant from APIClient
+        
+    Returns:
+        Decorated function with common collection logic
+    """
+    def decorator(func: Callable) -> Callable:
+        @functools.wraps(func)
+        def wrapper(self, ticker: str, db: Session) -> Dict[str, Any]:
+            start_time = time.time()
+            ticker = normalize_ticker(ticker)
+            
+            try:
+                result = func(self, ticker, db)
+                
+                if result.get("status") == "error":
+                    duration = time.time() - start_time
+                    self._log_collection(
+                        db, ticker, data_type, False,
+                        result.get("message"), duration, 0,
+                        source, api_endpoint
+                    )
+                    return result
+                
+                duration = time.time() - start_time
+                self._log_collection(
+                    db, ticker, data_type, True, None, duration,
+                    result.get("records", 1), source, api_endpoint
+                )
+                logger.info(f"Collected {data_type} for {ticker}")
+                return result
+                
+            except Exception as e:
+                db.rollback()
+                duration = time.time() - start_time
+                error_msg = str(e)
+                logger.error(f"Error collecting {data_type} for {ticker}: {error_msg}")
+                self._log_collection(
+                    db, ticker, data_type, False, error_msg, duration, 0,
+                    source, api_endpoint
+                )
+                return {"status": "error", "message": error_msg, "records": 0}
+        return wrapper
+    return decorator
 
 
 class DataCollectionService:
@@ -98,6 +158,7 @@ class DataCollectionService:
             logger.error(f"Failed to log collection: {e}")
             db.rollback()
     
+    @collection_wrapper("analyst_ratings", "tipranks", APIClient.TIPRANKS_ANALYST_RATINGS)
     def collect_analyst_ratings(self, ticker: str, db: Session) -> Dict[str, Any]:
         """
         Collect and store analyst ratings for a ticker.
@@ -109,66 +170,38 @@ class DataCollectionService:
         Returns:
             Dictionary with collection status and results
         """
-        start_time = time.time()
-        ticker = normalize_ticker(ticker)
+        # Fetch data from TipRanks API
+        raw_data = self.api_client.fetch_tipranks_analyst_ratings(ticker)
         
-        try:
-            # Fetch data from TipRanks API
-            raw_data = self.api_client.fetch_tipranks_analyst_ratings(ticker)
-            
-            if not raw_data:
-                duration = time.time() - start_time
-                self._log_collection(
-                    db, ticker, "analyst_ratings", False,
-                    "No data received from API", duration, 0,
-                    "tipranks", APIClient.TIPRANKS_ANALYST_RATINGS
-                )
-                return {"status": "error", "message": "No data received", "records": 0}
-            
-            # Parse response using notebook-style method
-            parsed_data = self.response_builder.build_analyst_consensus(raw_data, ticker)
-            
-            # Create database record with notebook-style fields only
-            db_record = AnalystConsensus(
-                ticker=parsed_data["ticker"],
-                timestamp=get_utc_now(),
-                total_ratings=parsed_data.get("total_ratings"),
-                buy_ratings=parsed_data.get("buy_ratings"),
-                hold_ratings=parsed_data.get("hold_ratings"),
-                sell_ratings=parsed_data.get("sell_ratings"),
-                consensus_recommendation=parsed_data.get("consensus_recommendation"),
-                consensus_rating_score=parsed_data.get("consensus_rating_score"),
-                price_target_high=parsed_data.get("price_target_high"),
-                price_target_low=parsed_data.get("price_target_low"),
-                price_target_average=parsed_data.get("price_target_average"),
-                source="tipranks",
-                raw_data=raw_data
-            )
-            
-            db.add(db_record)
-            db.commit()
-            
-            # Log success
-            duration = time.time() - start_time
-            self._log_collection(
-                db, ticker, "analyst_ratings", True, None, duration, 1,
-                "tipranks", APIClient.TIPRANKS_ANALYST_RATINGS
-            )
-            
-            logger.info(f"Collected analyst ratings for {ticker}")
-            return {"status": "success", "records": 1}
-            
-        except Exception as e:
-            db.rollback()
-            duration = time.time() - start_time
-            error_msg = str(e)
-            logger.error(f"Error collecting analyst ratings for {ticker}: {error_msg}")
-            self._log_collection(
-                db, ticker, "analyst_ratings", False, error_msg, duration, 0,
-                "tipranks", APIClient.TIPRANKS_ANALYST_RATINGS
-            )
-            return {"status": "error", "message": error_msg, "records": 0}
+        if not raw_data:
+            return {"status": "error", "message": "No data received", "records": 0}
+        
+        # Parse response using notebook-style method
+        parsed_data = self.response_builder.build_analyst_consensus(raw_data, ticker)
+        
+        # Create database record with notebook-style fields only
+        db_record = AnalystConsensus(
+            ticker=parsed_data["ticker"],
+            timestamp=get_utc_now(),
+            total_ratings=parsed_data.get("total_ratings"),
+            buy_ratings=parsed_data.get("buy_ratings"),
+            hold_ratings=parsed_data.get("hold_ratings"),
+            sell_ratings=parsed_data.get("sell_ratings"),
+            consensus_recommendation=parsed_data.get("consensus_recommendation"),
+            consensus_rating_score=parsed_data.get("consensus_rating_score"),
+            price_target_high=parsed_data.get("price_target_high"),
+            price_target_low=parsed_data.get("price_target_low"),
+            price_target_average=parsed_data.get("price_target_average"),
+            source="tipranks",
+            raw_data=raw_data
+        )
+        
+        db.add(db_record)
+        db.commit()
+        
+        return {"status": "success", "records": 1}
     
+    @collection_wrapper("news_sentiment", "tipranks", APIClient.TIPRANKS_NEWS)
     def collect_news_sentiment(self, ticker: str, db: Session) -> Dict[str, Any]:
         """
         Collect and store news sentiment for a ticker.
@@ -180,61 +213,33 @@ class DataCollectionService:
         Returns:
             Dictionary with collection status and results
         """
-        start_time = time.time()
-        ticker = normalize_ticker(ticker)
+        # Fetch data from TipRanks API
+        raw_data = self.api_client.fetch_tipranks_news(ticker)
         
-        try:
-            # Fetch data from TipRanks API
-            raw_data = self.api_client.fetch_tipranks_news(ticker)
-            
-            if not raw_data:
-                duration = time.time() - start_time
-                self._log_collection(
-                    db, ticker, "news_sentiment", False,
-                    "No data received from API", duration, 0,
-                    "tipranks", APIClient.TIPRANKS_NEWS
-                )
-                return {"status": "error", "message": "No data received", "records": 0}
-            
-            # Parse response using notebook-style method
-            parsed_data = self.response_builder.build_news_sentiment(raw_data, ticker)
-            
-            # Create database record with notebook-style fields only
-            db_record = NewsSentiment(
-                ticker=parsed_data["ticker"],
-                timestamp=get_utc_now(),
-                stock_bullish_score=parsed_data.get("stock_bullish_score"),
-                stock_bearish_score=parsed_data.get("stock_bearish_score"),
-                sector_bullish_score=parsed_data.get("sector_bullish_score"),
-                sector_bearish_score=parsed_data.get("sector_bearish_score"),
-                source="tipranks",
-                raw_data=raw_data
-            )
-            
-            db.add(db_record)
-            db.commit()
-            
-            # Log success
-            duration = time.time() - start_time
-            self._log_collection(
-                db, ticker, "news_sentiment", True, None, duration, 1,
-                "tipranks", APIClient.TIPRANKS_NEWS
-            )
-            
-            logger.info(f"Collected news sentiment for {ticker}")
-            return {"status": "success", "records": 1}
-            
-        except Exception as e:
-            db.rollback()
-            duration = time.time() - start_time
-            error_msg = str(e)
-            logger.error(f"Error collecting news sentiment for {ticker}: {error_msg}")
-            self._log_collection(
-                db, ticker, "news_sentiment", False, error_msg, duration, 0,
-                "tipranks", APIClient.TIPRANKS_NEWS
-            )
-            return {"status": "error", "message": error_msg, "records": 0}
+        if not raw_data:
+            return {"status": "error", "message": "No data received", "records": 0}
+        
+        # Parse response using notebook-style method
+        parsed_data = self.response_builder.build_news_sentiment(raw_data, ticker)
+        
+        # Create database record with notebook-style fields only
+        db_record = NewsSentiment(
+            ticker=parsed_data["ticker"],
+            timestamp=get_utc_now(),
+            stock_bullish_score=parsed_data.get("stock_bullish_score"),
+            stock_bearish_score=parsed_data.get("stock_bearish_score"),
+            sector_bullish_score=parsed_data.get("sector_bullish_score"),
+            sector_bearish_score=parsed_data.get("sector_bearish_score"),
+            source="tipranks",
+            raw_data=raw_data
+        )
+        
+        db.add(db_record)
+        db.commit()
+        
+        return {"status": "success", "records": 1}
     
+    @collection_wrapper("quantamental_scores", "trading_central", APIClient.TC_QUANTAMENTAL)
     def collect_quantamental_scores(self, ticker: str, db: Session) -> Dict[str, Any]:
         """
         Collect and store quantamental scores for a ticker.
@@ -246,76 +251,42 @@ class DataCollectionService:
         Returns:
             Dictionary with collection status and results
         """
-        start_time = time.time()
-        ticker = normalize_ticker(ticker)
+        # Get Trading Central ID for this ticker
+        ticker_config = settings.TICKER_CONFIGS.get(ticker, {})
+        tc_id = ticker_config.get("tr_v4_id")
         
-        try:
-            # Get Trading Central ID for this ticker
-            ticker_config = settings.TICKER_CONFIGS.get(ticker, {})
-            tc_id = ticker_config.get("tr_v4_id")
-            
-            if not tc_id:
-                duration = time.time() - start_time
-                self._log_collection(
-                    db, ticker, "quantamental_scores", False,
-                    "No Trading Central ID configured", duration, 0,
-                    "trading_central", APIClient.TC_QUANTAMENTAL
-                )
-                return {"status": "error", "message": "No Trading Central ID configured", "records": 0}
-            
-            # Fetch data from Trading Central API
-            raw_data = self.api_client.fetch_tc_quantamental(tc_id)
-            
-            if not raw_data:
-                duration = time.time() - start_time
-                self._log_collection(
-                    db, ticker, "quantamental_scores", False,
-                    "No data received from API", duration, 0,
-                    "trading_central", APIClient.TC_QUANTAMENTAL
-                )
-                return {"status": "error", "message": "No data received", "records": 0}
-            
-            # Parse response using notebook-style method
-            parsed_data = self.response_builder.build_quantamental(raw_data, ticker)
-            
-            # Create database record with notebook-style fields only
-            db_record = QuantamentalScore(
-                ticker=parsed_data["ticker"],
-                timestamp=get_utc_now(),
-                overall=parsed_data.get("overall"),
-                growth=parsed_data.get("growth"),
-                value=parsed_data.get("value"),
-                income=parsed_data.get("income"),
-                quality=parsed_data.get("quality"),
-                momentum=parsed_data.get("momentum"),
-                source="trading_central",
-                raw_data=raw_data
-            )
-            
-            db.add(db_record)
-            db.commit()
-            
-            # Log success
-            duration = time.time() - start_time
-            self._log_collection(
-                db, ticker, "quantamental_scores", True, None, duration, 1,
-                "trading_central", APIClient.TC_QUANTAMENTAL
-            )
-            
-            logger.info(f"Collected quantamental scores for {ticker}")
-            return {"status": "success", "records": 1}
-            
-        except Exception as e:
-            db.rollback()
-            duration = time.time() - start_time
-            error_msg = str(e)
-            logger.error(f"Error collecting quantamental scores for {ticker}: {error_msg}")
-            self._log_collection(
-                db, ticker, "quantamental_scores", False, error_msg, duration, 0,
-                "trading_central", APIClient.TC_QUANTAMENTAL
-            )
-            return {"status": "error", "message": error_msg, "records": 0}
+        if not tc_id:
+            return {"status": "error", "message": "No Trading Central ID configured", "records": 0}
+        
+        # Fetch data from Trading Central API
+        raw_data = self.api_client.fetch_tc_quantamental(tc_id)
+        
+        if not raw_data:
+            return {"status": "error", "message": "No data received", "records": 0}
+        
+        # Parse response using notebook-style method
+        parsed_data = self.response_builder.build_quantamental(raw_data, ticker)
+        
+        # Create database record with notebook-style fields only
+        db_record = QuantamentalScore(
+            ticker=parsed_data["ticker"],
+            timestamp=get_utc_now(),
+            overall=parsed_data.get("overall"),
+            growth=parsed_data.get("growth"),
+            value=parsed_data.get("value"),
+            income=parsed_data.get("income"),
+            quality=parsed_data.get("quality"),
+            momentum=parsed_data.get("momentum"),
+            source="trading_central",
+            raw_data=raw_data
+        )
+        
+        db.add(db_record)
+        db.commit()
+        
+        return {"status": "success", "records": 1}
     
+    @collection_wrapper("hedge_fund_data", "tipranks", APIClient.TIPRANKS_ETORO_DATA)
     def collect_hedge_fund_data(self, ticker: str, db: Session) -> Dict[str, Any]:
         """
         Collect and store hedge fund data for a ticker.
@@ -327,60 +298,32 @@ class DataCollectionService:
         Returns:
             Dictionary with collection status and results
         """
-        start_time = time.time()
-        ticker = normalize_ticker(ticker)
+        # Fetch data from TipRanks eToro API
+        raw_data = self.api_client.fetch_tipranks_etoro_data(ticker)
         
-        try:
-            # Fetch data from TipRanks eToro API
-            raw_data = self.api_client.fetch_tipranks_etoro_data(ticker)
-            
-            if not raw_data:
-                duration = time.time() - start_time
-                self._log_collection(
-                    db, ticker, "hedge_fund_data", False,
-                    "No data received from API", duration, 0,
-                    "tipranks", APIClient.TIPRANKS_ETORO_DATA
-                )
-                return {"status": "error", "message": "No data received", "records": 0}
-            
-            # Parse response using notebook-style method
-            parsed_data = self.response_builder.build_hedge_fund(raw_data, ticker)
-            
-            # Create database record with notebook-style fields only
-            db_record = HedgeFundData(
-                ticker=parsed_data["ticker"],
-                timestamp=get_utc_now(),
-                sentiment=parsed_data.get("sentiment"),
-                trend_action=parsed_data.get("trend_action"),
-                trend_value=parsed_data.get("trend_value"),
-                source="tipranks",
-                raw_data=raw_data
-            )
-            
-            db.add(db_record)
-            db.commit()
-            
-            # Log success
-            duration = time.time() - start_time
-            self._log_collection(
-                db, ticker, "hedge_fund_data", True, None, duration, 1,
-                "tipranks", APIClient.TIPRANKS_ETORO_DATA
-            )
-            
-            logger.info(f"Collected hedge fund data for {ticker}")
-            return {"status": "success", "records": 1}
-            
-        except Exception as e:
-            db.rollback()
-            duration = time.time() - start_time
-            error_msg = str(e)
-            logger.error(f"Error collecting hedge fund data for {ticker}: {error_msg}")
-            self._log_collection(
-                db, ticker, "hedge_fund_data", False, error_msg, duration, 0,
-                "tipranks", APIClient.TIPRANKS_ETORO_DATA
-            )
-            return {"status": "error", "message": error_msg, "records": 0}
+        if not raw_data:
+            return {"status": "error", "message": "No data received", "records": 0}
+        
+        # Parse response using notebook-style method
+        parsed_data = self.response_builder.build_hedge_fund(raw_data, ticker)
+        
+        # Create database record with notebook-style fields only
+        db_record = HedgeFundData(
+            ticker=parsed_data["ticker"],
+            timestamp=get_utc_now(),
+            sentiment=parsed_data.get("sentiment"),
+            trend_action=parsed_data.get("trend_action"),
+            trend_value=parsed_data.get("trend_value"),
+            source="tipranks",
+            raw_data=raw_data
+        )
+        
+        db.add(db_record)
+        db.commit()
+        
+        return {"status": "success", "records": 1}
     
+    @collection_wrapper("crowd_statistics", "tipranks", APIClient.TIPRANKS_CROWD_DATA)
     def collect_crowd_data(self, ticker: str, db: Session) -> Dict[str, Any]:
         """
         Collect and store crowd statistics for a ticker.
@@ -392,68 +335,40 @@ class DataCollectionService:
         Returns:
             Dictionary with collection status and results
         """
-        start_time = time.time()
-        ticker = normalize_ticker(ticker)
+        # Fetch data from TipRanks API
+        raw_data = self.api_client.fetch_tipranks_crowd_data(ticker)
         
-        try:
-            # Fetch data from TipRanks API
-            raw_data = self.api_client.fetch_tipranks_crowd_data(ticker)
-            
-            if not raw_data:
-                duration = time.time() - start_time
-                self._log_collection(
-                    db, ticker, "crowd_statistics", False,
-                    "No data received from API", duration, 0,
-                    "tipranks", APIClient.TIPRANKS_CROWD_DATA
-                )
-                return {"status": "error", "message": "No data received", "records": 0}
-            
-            # Parse response using notebook-style method
-            parsed_data = self.response_builder.build_crowd_stats(raw_data, ticker)
-            
-            # Create database record with notebook-style fields only
-            db_record = CrowdStats(
-                ticker=parsed_data["ticker"],
-                timestamp=get_utc_now(),
-                stats_type=parsed_data.get("stats_type", "all"),
-                portfolio_holding=parsed_data.get("portfolio_holding"),
-                amount_of_portfolios=parsed_data.get("amount_of_portfolios"),
-                amount_of_public_portfolios=parsed_data.get("amount_of_public_portfolios"),
-                percent_allocated=parsed_data.get("percent_allocated"),
-                based_on_portfolios=parsed_data.get("based_on_portfolios"),
-                percent_over_last_7d=parsed_data.get("percent_over_last_7d"),
-                percent_over_last_30d=parsed_data.get("percent_over_last_30d"),
-                score=parsed_data.get("score"),
-                individual_sector_average=parsed_data.get("individual_sector_average"),
-                frequency=parsed_data.get("frequency"),
-                source="tipranks",
-                raw_data=raw_data
-            )
-            
-            db.add(db_record)
-            db.commit()
-            
-            # Log success
-            duration = time.time() - start_time
-            self._log_collection(
-                db, ticker, "crowd_statistics", True, None, duration, 1,
-                "tipranks", APIClient.TIPRANKS_CROWD_DATA
-            )
-            
-            logger.info(f"Collected crowd data for {ticker}")
-            return {"status": "success", "records": 1}
-            
-        except Exception as e:
-            db.rollback()
-            duration = time.time() - start_time
-            error_msg = str(e)
-            logger.error(f"Error collecting crowd data for {ticker}: {error_msg}")
-            self._log_collection(
-                db, ticker, "crowd_statistics", False, error_msg, duration, 0,
-                "tipranks", APIClient.TIPRANKS_CROWD_DATA
-            )
-            return {"status": "error", "message": error_msg, "records": 0}
+        if not raw_data:
+            return {"status": "error", "message": "No data received", "records": 0}
+        
+        # Parse response using notebook-style method
+        parsed_data = self.response_builder.build_crowd_stats(raw_data, ticker)
+        
+        # Create database record with notebook-style fields only
+        db_record = CrowdStats(
+            ticker=parsed_data["ticker"],
+            timestamp=get_utc_now(),
+            stats_type=parsed_data.get("stats_type", "all"),
+            portfolio_holding=parsed_data.get("portfolio_holding"),
+            amount_of_portfolios=parsed_data.get("amount_of_portfolios"),
+            amount_of_public_portfolios=parsed_data.get("amount_of_public_portfolios"),
+            percent_allocated=parsed_data.get("percent_allocated"),
+            based_on_portfolios=parsed_data.get("based_on_portfolios"),
+            percent_over_last_7d=parsed_data.get("percent_over_last_7d"),
+            percent_over_last_30d=parsed_data.get("percent_over_last_30d"),
+            score=parsed_data.get("score"),
+            individual_sector_average=parsed_data.get("individual_sector_average"),
+            frequency=parsed_data.get("frequency"),
+            source="tipranks",
+            raw_data=raw_data
+        )
+        
+        db.add(db_record)
+        db.commit()
+        
+        return {"status": "success", "records": 1}
     
+    @collection_wrapper("blogger_sentiment", "tipranks", APIClient.TIPRANKS_BLOGGERS)
     def collect_blogger_sentiment(self, ticker: str, db: Session) -> Dict[str, Any]:
         """
         Collect and store blogger sentiment for a ticker.
@@ -465,64 +380,35 @@ class DataCollectionService:
         Returns:
             Dictionary with collection status and results
         """
-        start_time = time.time()
-        ticker = normalize_ticker(ticker)
+        # Fetch data from TipRanks API
+        raw_data = self.api_client.fetch_tipranks_bloggers(ticker)
         
-        try:
-            # Fetch data from TipRanks API
-            raw_data = self.api_client.fetch_tipranks_bloggers(ticker)
-            
-            if not raw_data:
-                duration = time.time() - start_time
-                self._log_collection(
-                    db, ticker, "blogger_sentiment", False,
-                    "No data received from API", duration, 0,
-                    "tipranks", APIClient.TIPRANKS_BLOGGERS
-                )
-                return {"status": "error", "message": "No data received", "records": 0}
-            
-            # Parse response using notebook-style method
-            parsed_data = self.response_builder.build_blogger_sentiment(raw_data, ticker)
-            
-            # Create database record with notebook-style fields only
-            db_record = BloggerSentiment(
-                ticker=parsed_data["ticker"],
-                timestamp=get_utc_now(),
-                bearish=parsed_data.get("bearish"),
-                neutral=parsed_data.get("neutral"),
-                bullish=parsed_data.get("bullish"),
-                bearish_count=parsed_data.get("bearish_count"),
-                neutral_count=parsed_data.get("neutral_count"),
-                bullish_count=parsed_data.get("bullish_count"),
-                score=parsed_data.get("score"),
-                avg=parsed_data.get("avg"),
-                source="tipranks",
-                raw_data=raw_data
-            )
-            
-            db.add(db_record)
-            db.commit()
-            
-            # Log success
-            duration = time.time() - start_time
-            self._log_collection(
-                db, ticker, "blogger_sentiment", True, None, duration, 1,
-                "tipranks", APIClient.TIPRANKS_BLOGGERS
-            )
-            
-            logger.info(f"Collected blogger sentiment for {ticker}")
-            return {"status": "success", "records": 1}
-            
-        except Exception as e:
-            db.rollback()
-            duration = time.time() - start_time
-            error_msg = str(e)
-            logger.error(f"Error collecting blogger sentiment for {ticker}: {error_msg}")
-            self._log_collection(
-                db, ticker, "blogger_sentiment", False, error_msg, duration, 0,
-                "tipranks", APIClient.TIPRANKS_BLOGGERS
-            )
-            return {"status": "error", "message": error_msg, "records": 0}
+        if not raw_data:
+            return {"status": "error", "message": "No data received", "records": 0}
+        
+        # Parse response using notebook-style method
+        parsed_data = self.response_builder.build_blogger_sentiment(raw_data, ticker)
+        
+        # Create database record with notebook-style fields only
+        db_record = BloggerSentiment(
+            ticker=parsed_data["ticker"],
+            timestamp=get_utc_now(),
+            bearish=parsed_data.get("bearish"),
+            neutral=parsed_data.get("neutral"),
+            bullish=parsed_data.get("bullish"),
+            bearish_count=parsed_data.get("bearish_count"),
+            neutral_count=parsed_data.get("neutral_count"),
+            bullish_count=parsed_data.get("bullish_count"),
+            score=parsed_data.get("score"),
+            avg=parsed_data.get("avg"),
+            source="tipranks",
+            raw_data=raw_data
+        )
+        
+        db.add(db_record)
+        db.commit()
+        
+        return {"status": "success", "records": 1}
     
     def collect_technical_indicators(self, ticker: str, db: Session) -> Dict[str, Any]:
         """
@@ -636,6 +522,7 @@ class DataCollectionService:
             )
             return {"status": "error", "message": error_msg, "records": 0}
     
+    @collection_wrapper("target_prices", "trading_central", APIClient.TC_TARGET_PRICES)
     def collect_target_prices(self, ticker: str, db: Session) -> Dict[str, Any]:
         """
         Collect and store target prices for a ticker.
@@ -647,74 +534,38 @@ class DataCollectionService:
         Returns:
             Dictionary with collection status and results
         """
-        start_time = time.time()
-        ticker = normalize_ticker(ticker)
+        # Get Trading Central ID for this ticker
+        ticker_config = settings.TICKER_CONFIGS.get(ticker, {})
+        tc_id = ticker_config.get("tr_v4_id")
         
-        try:
-            # Get Trading Central ID for this ticker
-            ticker_config = settings.TICKER_CONFIGS.get(ticker, {})
-            tc_id = ticker_config.get("tr_v4_id")
-            
-            if not tc_id:
-                duration = time.time() - start_time
-                self._log_collection(
-                    db, ticker, "target_prices", False,
-                    "No Trading Central ID configured", duration, 0,
-                    "trading_central", APIClient.TC_TARGET_PRICES
-                )
-                return {"status": "error", "message": "No Trading Central ID configured", "records": 0}
-            
-            # Fetch data from Trading Central API
-            raw_data = self.api_client.fetch_tc_target_prices(tc_id)
-            
-            if not raw_data:
-                duration = time.time() - start_time
-                self._log_collection(
-                    db, ticker, "target_prices", False,
-                    "No data received from API", duration, 0,
-                    "trading_central", APIClient.TC_TARGET_PRICES
-                )
-                return {"status": "error", "message": "No data received", "records": 0}
-            
-            # Parse response using notebook-style method
-            parsed_data = self.response_builder.build_target_price(raw_data, ticker)
-            
-            # Create database record with notebook-style fields only
-            db_record = TargetPrice(
-                ticker=parsed_data["ticker"],
-                timestamp=get_utc_now(),
-                close_price=parsed_data.get("close_price"),
-                target_price=parsed_data.get("target_price"),
-                target_date=parsed_data.get("target_date"),
-                last_updated=parsed_data.get("last_updated"),
-                source="trading_central",
-                raw_data=raw_data
-            )
-            db.add(db_record)
-            records_added = 1
-            
-            db.commit()
-            
-            # Log success
-            duration = time.time() - start_time
-            self._log_collection(
-                db, ticker, "target_prices", True, None, duration, records_added,
-                "trading_central", APIClient.TC_TARGET_PRICES
-            )
-            
-            logger.info(f"Collected {records_added} target prices for {ticker}")
-            return {"status": "success", "records": records_added}
-            
-        except Exception as e:
-            db.rollback()
-            duration = time.time() - start_time
-            error_msg = str(e)
-            logger.error(f"Error collecting target prices for {ticker}: {error_msg}")
-            self._log_collection(
-                db, ticker, "target_prices", False, error_msg, duration, 0,
-                "trading_central", APIClient.TC_TARGET_PRICES
-            )
-            return {"status": "error", "message": error_msg, "records": 0}
+        if not tc_id:
+            return {"status": "error", "message": "No Trading Central ID configured", "records": 0}
+        
+        # Fetch data from Trading Central API
+        raw_data = self.api_client.fetch_tc_target_prices(tc_id)
+        
+        if not raw_data:
+            return {"status": "error", "message": "No data received", "records": 0}
+        
+        # Parse response using notebook-style method
+        parsed_data = self.response_builder.build_target_price(raw_data, ticker)
+        
+        # Create database record with notebook-style fields only
+        db_record = TargetPrice(
+            ticker=parsed_data["ticker"],
+            timestamp=get_utc_now(),
+            close_price=parsed_data.get("close_price"),
+            target_price=parsed_data.get("target_price"),
+            target_date=parsed_data.get("target_date"),
+            last_updated=parsed_data.get("last_updated"),
+            source="trading_central",
+            raw_data=raw_data
+        )
+        db.add(db_record)
+        
+        db.commit()
+        
+        return {"status": "success", "records": 1}
     
     def collect_all_data_for_ticker(self, ticker: str, db: Session) -> Dict[str, Any]:
         """
