@@ -50,7 +50,7 @@ class StockDataBase(BaseModel):
     ticker: str = Field(..., max_length=10, description="Stock ticker symbol")
     timestamp: Optional[datetime] = Field(default=None, description="Data timestamp")
     source: Optional[str] = Field(default=None, max_length=100, description="Data source")
-    raw_data: Optional[Dict[str, Any]] = Field(default=None, description="Raw API response")
+    raw_data: Optional[Any] = Field(default=None, description="Raw API response")
 
 
 # ============================================

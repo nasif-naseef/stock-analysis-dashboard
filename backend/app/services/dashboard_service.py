@@ -31,6 +31,10 @@ from app.utils.helpers import get_utc_now
 
 logger = logging.getLogger(__name__)
 
+# Sentiment classification thresholds
+SENTIMENT_BULLISH_THRESHOLD = 0.1
+SENTIMENT_BEARISH_THRESHOLD = -0.1
+
 
 class AlertType(str, Enum):
     """Enum for alert types"""
@@ -103,15 +107,26 @@ class DashboardService:
             ticker_data = self._get_ticker_overview(db, ticker)
             result["tickers"][ticker] = ticker_data
 
-            # Aggregate sentiment data
-            if ticker_data.get("news_sentiment", {}).get("sentiment_score"):
-                sentiment_scores.append(ticker_data["news_sentiment"]["sentiment_score"])
-
-            sentiment = ticker_data.get("news_sentiment", {}).get("sentiment")
-            if sentiment == "bullish":
-                result["summary"]["bullish_count"] += 1
-            elif sentiment == "bearish":
-                result["summary"]["bearish_count"] += 1
+            # Aggregate sentiment data based on bullish/bearish scores
+            news_sentiment = ticker_data.get("news_sentiment", {})
+            stock_bullish = news_sentiment.get("stock_bullish_score")
+            stock_bearish = news_sentiment.get("stock_bearish_score")
+            
+            # Calculate net sentiment score (only if at least one score exists)
+            if stock_bullish is not None or stock_bearish is not None:
+                # Use 0 as default if one score is missing
+                stock_bullish = stock_bullish if stock_bullish is not None else 0
+                stock_bearish = stock_bearish if stock_bearish is not None else 0
+                net_sentiment = stock_bullish - stock_bearish
+                sentiment_scores.append(net_sentiment)
+                
+                # Classify sentiment using defined thresholds
+                if net_sentiment > SENTIMENT_BULLISH_THRESHOLD:
+                    result["summary"]["bullish_count"] += 1
+                elif net_sentiment < SENTIMENT_BEARISH_THRESHOLD:
+                    result["summary"]["bearish_count"] += 1
+                else:
+                    result["summary"]["neutral_count"] += 1
             else:
                 result["summary"]["neutral_count"] += 1
 
@@ -258,11 +273,10 @@ class DashboardService:
 
         return {
             "timestamp": data.timestamp.isoformat() if data.timestamp else None,
-            "sentiment": data.sentiment.value if data.sentiment else None,
-            "sentiment_score": data.sentiment_score,
-            "buzz_score": data.buzz_score,
-            "news_score": data.news_score,
-            "total_articles": data.total_articles,
+            "stock_bullish_score": data.stock_bullish_score,
+            "stock_bearish_score": data.stock_bearish_score,
+            "sector_bullish_score": data.sector_bullish_score,
+            "sector_bearish_score": data.sector_bearish_score,
         }
 
     def _extract_quantamental_summary(self, data: Optional[QuantamentalScore]) -> Dict[str, Any]:

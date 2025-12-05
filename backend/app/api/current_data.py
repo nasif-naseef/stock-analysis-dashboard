@@ -20,6 +20,7 @@ from app.models.stock_data import (
     BloggerSentiment,
     TechnicalIndicator,
     TargetPrice,
+    TimeframeType as ModelTimeframeType,
 )
 from app.schemas.stock_schemas import (
     AnalystRatingResponse,
@@ -223,7 +224,9 @@ async def get_technical_indicators(
     query = db.query(TechnicalIndicator).filter(TechnicalIndicator.ticker == ticker)
 
     if timeframe:
-        query = query.filter(TechnicalIndicator.timeframe == timeframe)
+        # Convert schema enum to model enum by value
+        model_timeframe = ModelTimeframeType(timeframe.value)
+        query = query.filter(TechnicalIndicator.timeframe == model_timeframe)
 
     data = query.order_by(desc(TechnicalIndicator.timestamp)).first()
 
