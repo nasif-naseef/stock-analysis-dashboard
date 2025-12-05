@@ -461,6 +461,65 @@ class ResponseBuilder:
             logger.error(f"Error building article distribution: {e}")
             raise
 
+    def build_blogger_article_distribution(
+        self,
+        raw_data: Dict[str, Any],
+        ticker: str
+    ) -> Dict[str, Any]:
+        """
+        Build blogger article distribution data matching notebook API structure.
+        
+        Extracts from: bloggerArticleDistribution (list of dicts with sentiment and counts)
+        
+        Args:
+            raw_data: Raw API response from TipRanks bloggers endpoint
+            ticker: Stock ticker symbol
+            
+        Returns:
+            Dictionary with parsed blogger article distribution fields
+        """
+        try:
+            if isinstance(raw_data, list):
+                raw_data = raw_data[0] if raw_data else {}
+            
+            distribution = raw_data.get('bloggerArticleDistribution', []) or []
+            
+            # Process the distribution data using DataFrameOptimizer
+            df = DataFrameOptimizer.process_batch(distribution)
+            
+            # Calculate totals
+            total_articles = 0
+            bullish_count = 0
+            neutral_count = 0
+            bearish_count = 0
+            
+            if not df.empty and 'sentiment' in df.columns and 'count' in df.columns:
+                for _, row in df.iterrows():
+                    sentiment = str(row['sentiment']).lower()
+                    count = int(row.get('count', 0)) if row.get('count') else 0
+                    total_articles += count
+                    
+                    if 'bullish' in sentiment or sentiment == '1':
+                        bullish_count = count
+                    elif 'neutral' in sentiment or sentiment == '0':
+                        neutral_count = count
+                    elif 'bearish' in sentiment or sentiment == '-1':
+                        bearish_count = count
+            
+            return {
+                "ticker": ticker,
+                "total_articles": total_articles,
+                "bullish_count": bullish_count,
+                "bullish_percentage": (bullish_count / total_articles * 100) if total_articles > 0 else 0,
+                "neutral_count": neutral_count,
+                "neutral_percentage": (neutral_count / total_articles * 100) if total_articles > 0 else 0,
+                "bearish_count": bearish_count,
+                "bearish_percentage": (bearish_count / total_articles * 100) if total_articles > 0 else 0,
+            }
+        except Exception as e:
+            logger.error(f"Error building blogger article distribution: {e}")
+            raise
+
     def build_article_sentiment(
         self,
         sentiment_responses: Dict[str, Any],

@@ -6,9 +6,10 @@ with connection pooling, caching, rate limiting, error handling, and retries.
 """
 import time
 import logging
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
 from collections import OrderedDict
 from threading import Lock
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -137,9 +138,11 @@ class APIClient:
     TC_BASE_URL = "https://api.tradingcentral.com"
     # V4 APIs use Bearer token in header
     TC_QUANTAMENTAL = "/quantamental/v4"
+    TC_QUANTAMENTAL_TIMESERIES = "/quantamental/v4/timeseries"
     TC_TARGET_PRICES = "/target-prices/v4"
     TC_ARTICLE_ANALYTICS = "/article-analytics/v4/entities"  # Append /{entity_id}
     TC_ARTICLE_SENTIMENTS = "/article-sentiments/v5/entities"  # Append /{entity_id}
+    TC_SENTIMENT_TIMESERIES = "/article-sentiments/v5/entities"  # Append /{entity_id}/timeseries
     # V3 APIs use token in URL query parameter
     TC_SUPPORT_RESISTANCE = "/supportandresistance/v3"  # Uses ?token= and ?id=
     TC_STOP_TIMESERIES = "/stoptimeseries/v3"  # Uses ?token= and ?id=
@@ -307,6 +310,46 @@ class APIClient:
             logger.error(f"JSON decode error for {url}: {e}")
             return None
     
+    def fetch_multiple(
+        self,
+        urls: List[Tuple[str, str, Optional[Dict[str, str]]]]
+    ) -> Dict[str, Any]:
+        """
+        Fetch multiple URLs in parallel using ThreadPoolExecutor.
+        
+        Args:
+            urls: List of tuples containing (key, url, headers)
+                  Each tuple should be (response_key, url_to_fetch, optional_headers_dict)
+            
+        Returns:
+            Dictionary mapping response keys to their fetched data
+        """
+        results = {}
+        
+        def fetch_single(key: str, url: str, headers: Optional[Dict[str, str]]) -> Tuple[str, Any]:
+            """Helper function to fetch a single URL"""
+            data = self.fetch(url, headers=headers, use_cache=True)
+            return (key, data)
+        
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            # Submit all fetch tasks
+            future_to_key = {
+                executor.submit(fetch_single, key, url, headers): key
+                for key, url, headers in urls
+            }
+            
+            # Collect results as they complete
+            for future in as_completed(future_to_key):
+                key = future_to_key[future]
+                try:
+                    result_key, data = future.result()
+                    results[result_key] = data
+                except Exception as e:
+                    logger.error(f"Error fetching {key}: {e}")
+                    results[key] = None
+        
+        return results
+    
     def fetch_tipranks(
         self,
         endpoint: str,
@@ -464,6 +507,95 @@ class APIClient:
     def fetch_tc_instrument_events(self, ticker_id: str) -> Optional[Dict[str, Any]]:
         """Fetch instrument events from Trading Central V3 API with token in URL"""
         return self.fetch_trading_central_v3(self.TC_INSTRUMENT_EVENTS, ticker_id)
+    
+    def fetch_tc_quantamental_timeseries(
+        self,
+        ticker_id: str,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Fetch quantamental timeseries data from Trading Central V4 API.
+        
+        Args:
+            ticker_id: Trading Central instrument ID (format: symbol:exchange, e.g., "AAPL:NASDAQ")
+            start_date: Start date in ISO format (e.g., "2020-01-01")
+            end_date: End date in ISO format (e.g., "2024-12-31")
+            
+        Returns:
+            API response as dictionary
+        """
+        params = {}
+        if start_date:
+            params['start'] = start_date
+        if end_date:
+            params['end'] = end_date
+        
+        return self.fetch_trading_central(
+            self.TC_QUANTAMENTAL_TIMESERIES,
+            ticker_id,
+            extra_params=params
+        )
+    
+    def fetch_tc_sentiment_timeseries(self, entity_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Fetch sentiment timeseries from Trading Central V5 API.
+        
+        Args:
+            entity_id: Trading Central entity ID (e.g., "EQ-0C00000ADA")
+            
+        Returns:
+            API response with dates and sentiment arrays
+        """
+        # Build URL with entity_id in path and /timeseries suffix
+        url = self._build_url(
+            self.TC_BASE_URL,
+            self.TC_SENTIMENT_TIMESERIES,
+            [entity_id, "timeseries"]
+        )
+        
+        if not self.tc_token:
+            logger.warning("Trading Central token not configured")
+            return None
+        
+        headers = {"Authorization": f"Bearer {self.tc_token}"}
+        return self.fetch(url, headers=headers)
+    
+    def fetch_tc_article_sentiment_full(self, entity_id: str) -> Dict[str, Any]:
+        """
+        Fetch full article sentiment data from Trading Central V4 API.
+        
+        Fetches three endpoints in parallel:
+        - /article-sentiments/v5/entities/{entity_id} (sentiment)
+        - /article-sentiments/v5/entities/{entity_id}/subjectivity
+        - /article-sentiments/v5/entities/{entity_id}/confidence
+        
+        Args:
+            entity_id: Trading Central entity ID (e.g., "EQ-0C00000ADA")
+            
+        Returns:
+            Dictionary with 'sentiment', 'subjectivity', 'confidence' keys
+        """
+        if not self.tc_token:
+            logger.warning("Trading Central token not configured")
+            return {'sentiment': None, 'subjectivity': None, 'confidence': None}
+        
+        headers = {"Authorization": f"Bearer {self.tc_token}"}
+        
+        # Build URLs for all three endpoints
+        base_url = self._build_url(
+            self.TC_BASE_URL,
+            self.TC_ARTICLE_SENTIMENTS,
+            [entity_id]
+        )
+        
+        urls = [
+            ('sentiment', base_url, headers),
+            ('subjectivity', f"{base_url}/subjectivity", headers),
+            ('confidence', f"{base_url}/confidence", headers)
+        ]
+        
+        return self.fetch_multiple(urls)
     
     def close(self) -> None:
         """Close the session and release resources"""
