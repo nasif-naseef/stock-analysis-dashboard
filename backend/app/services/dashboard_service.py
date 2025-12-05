@@ -256,13 +256,23 @@ class DashboardService:
         if not data:
             return {}
 
+        # Calculate a sentiment indicator based on bullish/bearish scores
+        sentiment = None
+        if data.stock_bullish_score is not None and data.stock_bearish_score is not None:
+            if data.stock_bullish_score > data.stock_bearish_score:
+                sentiment = "bullish"
+            elif data.stock_bearish_score > data.stock_bullish_score:
+                sentiment = "bearish"
+            else:
+                sentiment = "neutral"
+
         return {
             "timestamp": data.timestamp.isoformat() if data.timestamp else None,
-            "sentiment": data.sentiment.value if data.sentiment else None,
-            "sentiment_score": data.sentiment_score,
-            "buzz_score": data.buzz_score,
-            "news_score": data.news_score,
-            "total_articles": data.total_articles,
+            "sentiment": sentiment,
+            "stock_bullish_score": data.stock_bullish_score,
+            "stock_bearish_score": data.stock_bearish_score,
+            "sector_bullish_score": data.sector_bullish_score,
+            "sector_bearish_score": data.sector_bearish_score,
         }
 
     def _extract_quantamental_summary(self, data: Optional[QuantamentalScore]) -> Dict[str, Any]:
