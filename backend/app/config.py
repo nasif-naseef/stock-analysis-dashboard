@@ -110,8 +110,18 @@ class Settings(BaseSettings):
     
     @property
     def cors_origins_list(self) -> List[str]:
-        """Get list of CORS origins"""
-        return [o.strip() for o in self.CORS_ORIGINS.split(',')]
+        """
+        Get list of CORS origins with validation.
+        
+        Returns:
+            List of valid, non-empty CORS origin URLs
+        """
+        if not self.CORS_ORIGINS or self.CORS_ORIGINS.strip() == "":
+            return ["*"]  # Default to allow all if not specified
+        
+        # Split by comma, strip whitespace, and filter out empty strings
+        origins = [o.strip() for o in self.CORS_ORIGINS.split(',')]
+        return [o for o in origins if o]  # Remove empty strings
     
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
 

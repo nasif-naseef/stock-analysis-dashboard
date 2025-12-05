@@ -95,12 +95,19 @@ app = FastAPI(
 )
 
 # Configure CORS
+# Filter out empty strings and ensure origins are valid
+cors_origins = [origin for origin in settings.cors_origins_list if origin and origin.strip()]
+
+# Log CORS configuration for debugging
+logger.info(f"CORS configured with origins: {cors_origins}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
+    allow_origins=cors_origins if cors_origins else ["*"],  # Fallback to allow all if no origins specified
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],  # Allow frontend to read all response headers
 )
 
 # Include API routers
