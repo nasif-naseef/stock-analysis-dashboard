@@ -31,6 +31,10 @@ from app.utils.helpers import get_utc_now
 
 logger = logging.getLogger(__name__)
 
+# Sentiment classification thresholds
+SENTIMENT_BULLISH_THRESHOLD = 0.1
+SENTIMENT_BEARISH_THRESHOLD = -0.1
+
 
 class AlertType(str, Enum):
     """Enum for alert types"""
@@ -105,18 +109,18 @@ class DashboardService:
 
             # Aggregate sentiment data based on bullish/bearish scores
             news_sentiment = ticker_data.get("news_sentiment", {})
-            stock_bullish = news_sentiment.get("stock_bullish_score", 0) or 0
-            stock_bearish = news_sentiment.get("stock_bearish_score", 0) or 0
+            stock_bullish = news_sentiment.get("stock_bullish_score") or 0
+            stock_bearish = news_sentiment.get("stock_bearish_score") or 0
             
             # Calculate net sentiment score
             if stock_bullish or stock_bearish:
                 net_sentiment = stock_bullish - stock_bearish
                 sentiment_scores.append(net_sentiment)
                 
-                # Classify sentiment
-                if net_sentiment > 0.1:
+                # Classify sentiment using defined thresholds
+                if net_sentiment > SENTIMENT_BULLISH_THRESHOLD:
                     result["summary"]["bullish_count"] += 1
-                elif net_sentiment < -0.1:
+                elif net_sentiment < SENTIMENT_BEARISH_THRESHOLD:
                     result["summary"]["bearish_count"] += 1
                 else:
                     result["summary"]["neutral_count"] += 1
