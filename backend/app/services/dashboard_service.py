@@ -109,11 +109,14 @@ class DashboardService:
 
             # Aggregate sentiment data based on bullish/bearish scores
             news_sentiment = ticker_data.get("news_sentiment", {})
-            stock_bullish = news_sentiment.get("stock_bullish_score") or 0
-            stock_bearish = news_sentiment.get("stock_bearish_score") or 0
+            stock_bullish = news_sentiment.get("stock_bullish_score")
+            stock_bearish = news_sentiment.get("stock_bearish_score")
             
-            # Calculate net sentiment score
-            if stock_bullish or stock_bearish:
+            # Calculate net sentiment score (only if at least one score exists)
+            if stock_bullish is not None or stock_bearish is not None:
+                # Use 0 as default if one score is missing
+                stock_bullish = stock_bullish if stock_bullish is not None else 0
+                stock_bearish = stock_bearish if stock_bearish is not None else 0
                 net_sentiment = stock_bullish - stock_bearish
                 sentiment_scores.append(net_sentiment)
                 
