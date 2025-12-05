@@ -484,27 +484,29 @@ class ResponseBuilder:
             
             distribution = raw_data.get('bloggerArticleDistribution', []) or []
             
-            # Process the distribution data using DataFrameOptimizer
-            df = DataFrameOptimizer.process_batch(distribution)
-            
             # Calculate totals
             total_articles = 0
             bullish_count = 0
             neutral_count = 0
             bearish_count = 0
             
-            if not df.empty and 'sentiment' in df.columns and 'count' in df.columns:
-                for _, row in df.iterrows():
-                    sentiment = str(row['sentiment']).lower()
-                    count = int(row.get('count', 0)) if row.get('count') else 0
-                    total_articles += count
-                    
-                    if 'bullish' in sentiment or sentiment == '1':
-                        bullish_count = count
-                    elif 'neutral' in sentiment or sentiment == '0':
-                        neutral_count = count
-                    elif 'bearish' in sentiment or sentiment == '-1':
-                        bearish_count = count
+            # Only process if we have data
+            if distribution:
+                # Process the distribution data using DataFrameOptimizer
+                df = DataFrameOptimizer.process_batch(distribution)
+                
+                if not df.empty and 'sentiment' in df.columns and 'count' in df.columns:
+                    for _, row in df.iterrows():
+                        sentiment = str(row['sentiment']).lower()
+                        count = int(row.get('count', 0)) if row.get('count') else 0
+                        total_articles += count
+                        
+                        if 'bullish' in sentiment or sentiment == '1':
+                            bullish_count = count
+                        elif 'neutral' in sentiment or sentiment == '0':
+                            neutral_count = count
+                        elif 'bearish' in sentiment or sentiment == '-1':
+                            bearish_count = count
             
             return {
                 "ticker": ticker,

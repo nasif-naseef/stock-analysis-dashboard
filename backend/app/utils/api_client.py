@@ -331,7 +331,9 @@ class APIClient:
             data = self.fetch(url, headers=headers, use_cache=True)
             return (key, data)
         
-        with ThreadPoolExecutor(max_workers=5) as executor:
+        # Use dynamic worker count based on number of URLs (max 5)
+        max_workers = min(len(urls), 5)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Submit all fetch tasks
             future_to_key = {
                 executor.submit(fetch_single, key, url, headers): key

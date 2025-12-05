@@ -723,8 +723,16 @@ class StockDataService:
                     if isinstance(raw_data, dict):
                         topics = raw_data.get('topics', []) or []
                     # Process topics using DataFrameOptimizer
-                    topics_df = self.df_optimizer.process_batch(topics)
-                    results[t] = {"ticker": t, "topics": topics_df if hasattr(topics_df, 'to_dict') else topics}
+                    topics_processed = self.df_optimizer.process_batch(topics)
+                    # Return DataFrame or list based on type
+                    try:
+                        import pandas as pd
+                        if isinstance(topics_processed, pd.DataFrame):
+                            results[t] = {"ticker": t, "topics": topics_processed}
+                        else:
+                            results[t] = {"ticker": t, "topics": topics}
+                    except ImportError:
+                        results[t] = {"ticker": t, "topics": topics}
                 else:
                     results[t] = {"ticker": t, "topics": [], "error": "No data received"}
             except Exception as e:
