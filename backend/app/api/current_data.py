@@ -223,7 +223,7 @@ async def get_technical_indicators(
     query = db.query(TechnicalIndicator).filter(TechnicalIndicator.ticker == ticker)
 
     if timeframe:
-        query = query.filter(TechnicalIndicator.timeframe == timeframe)
+        query = query.filter(TechnicalIndicator.timeframe == timeframe.value)
 
     data = query.order_by(desc(TechnicalIndicator.timestamp)).first()
 
