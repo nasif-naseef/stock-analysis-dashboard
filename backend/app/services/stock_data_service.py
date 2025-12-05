@@ -7,7 +7,7 @@ Jupyter notebook (Final.ipynb) for consistency.
 """
 import logging
 from typing import Dict, Any, Optional, List
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app.config import settings
 from app.utils.api_client import APIClient
@@ -557,7 +557,6 @@ class StockDataService:
                 ticker_id = f"{t}:{exchange}"
                 
                 # Calculate date range (5 years by default)
-                from datetime import datetime, timedelta
                 end_date = datetime.now().strftime("%Y-%m-%d")
                 start_date = (datetime.now() - timedelta(days=settings.HISTORICAL_DAYS)).strftime("%Y-%m-%d")
                 
