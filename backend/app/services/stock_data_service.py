@@ -7,7 +7,7 @@ Jupyter notebook (Final.ipynb) for consistency.
 """
 import logging
 from typing import Dict, Any, Optional, List
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app.config import settings
 from app.utils.api_client import APIClient
@@ -443,6 +443,8 @@ class StockDataService:
         """
         Get blogger article distribution data.
         
+        Uses TipRanks bloggers endpoint and extracts bloggerArticleDistribution.
+        
         Args:
             ticker: Optional ticker. If None, fetches for all configured tickers.
             
@@ -456,7 +458,7 @@ class StockDataService:
             try:
                 raw_data = self.api_client.fetch_tipranks_bloggers(t)
                 if raw_data:
-                    results[t] = self.response_builder.build_article_distribution(raw_data, t)
+                    results[t] = self.response_builder.build_blogger_article_distribution(raw_data, t)
                 else:
                     results[t] = {"ticker": t, "error": "No data received"}
             except Exception as e:
@@ -533,7 +535,9 @@ class StockDataService:
     
     def get_quantamental_timeseries(self, ticker: Optional[str] = None) -> Dict[str, Any]:
         """
-        Get quantamental timeseries data.
+        Get quantamental timeseries data from Trading Central API.
+        
+        Uses the quantamental/v4/timeseries endpoint with date range parameters.
         
         Args:
             ticker: Optional ticker. If None, fetches for all configured tickers.
@@ -547,13 +551,21 @@ class StockDataService:
         for t in tickers:
             try:
                 ticker_config = settings.TICKER_CONFIGS.get(t, {})
-                tc_id = ticker_config.get("tr_v4_id")
+                exchange = ticker_config.get("exchange", "NASDAQ")
                 
-                if not tc_id:
-                    results[t] = {"ticker": t, "timeseries": [], "error": "No Trading Central ID configured"}
-                    continue
+                # Build ticker_id in format: symbol:exchange (e.g., "AAPL:NASDAQ")
+                ticker_id = f"{t}:{exchange}"
                 
-                raw_data = self.api_client.fetch_tc_quantamental(tc_id)
+                # Calculate date range (5 years by default)
+                end_date = datetime.now().strftime("%Y-%m-%d")
+                start_date = (datetime.now() - timedelta(days=settings.HISTORICAL_DAYS)).strftime("%Y-%m-%d")
+                
+                raw_data = self.api_client.fetch_tc_quantamental_timeseries(
+                    ticker_id,
+                    start_date=start_date,
+                    end_date=end_date
+                )
+                
                 if raw_data:
                     timeseries = self.response_builder.build_quantamental_timeseries_dataframe(raw_data)
                     results[t] = {"ticker": t, "timeseries": timeseries}
@@ -571,7 +583,9 @@ class StockDataService:
     
     def get_article_distribution(self, ticker: Optional[str] = None) -> Dict[str, Any]:
         """
-        Get article distribution data.
+        Get article distribution data from Trading Central API.
+        
+        Uses Trading Central article analytics endpoint to get article distribution by source.
         
         Args:
             ticker: Optional ticker. If None, fetches for all configured tickers.
@@ -584,7 +598,14 @@ class StockDataService:
         
         for t in tickers:
             try:
-                raw_data = self.api_client.fetch_tipranks_news(t)
+                ticker_config = settings.TICKER_CONFIGS.get(t, {})
+                entity_id = ticker_config.get("tr_v4_id")
+                
+                if not entity_id:
+                    results[t] = {"ticker": t, "error": "No Trading Central entity ID configured"}
+                    continue
+                
+                raw_data = self.api_client.fetch_tc_article_analytics(entity_id)
                 if raw_data:
                     results[t] = self.response_builder.build_article_distribution(raw_data, t)
                 else:
@@ -597,7 +618,9 @@ class StockDataService:
     
     def get_article_sentiment(self, ticker: Optional[str] = None) -> Dict[str, Any]:
         """
-        Get article sentiment data.
+        Get article sentiment data from Trading Central API.
+        
+        Fetches sentiment, subjectivity, and confidence data in parallel from 3 endpoints.
         
         Args:
             ticker: Optional ticker. If None, fetches for all configured tickers.
@@ -610,7 +633,14 @@ class StockDataService:
         
         for t in tickers:
             try:
-                raw_data = self.api_client.fetch_tipranks_news(t)
+                ticker_config = settings.TICKER_CONFIGS.get(t, {})
+                entity_id = ticker_config.get("tr_v4_id")
+                
+                if not entity_id:
+                    results[t] = {"ticker": t, "error": "No Trading Central entity ID configured"}
+                    continue
+                
+                raw_data = self.api_client.fetch_tc_article_sentiment_full(entity_id)
                 if raw_data:
                     results[t] = self.response_builder.build_article_sentiment(raw_data, t)
                 else:
@@ -623,36 +653,51 @@ class StockDataService:
     
     def get_sentiment_history(self, ticker: Optional[str] = None) -> Dict[str, Any]:
         """
-        Get sentiment history data.
+        Get sentiment history data from Trading Central API.
+        
+        Uses the sentiment timeseries endpoint to get historical sentiment data.
         
         Args:
             ticker: Optional ticker. If None, fetches for all configured tickers.
             
         Returns:
-            Dictionary with sentiment history data
+            Dictionary with sentiment history data (dates and sentiment_score arrays)
         """
         tickers = self._get_ticker_list(ticker)
         results = {}
         
         for t in tickers:
             try:
-                raw_data = self.api_client.fetch_tipranks_news(t)
+                ticker_config = settings.TICKER_CONFIGS.get(t, {})
+                entity_id = ticker_config.get("tr_v4_id")
+                
+                if not entity_id:
+                    results[t] = {"ticker": t, "dates": [], "sentiment_score": [], "error": "No Trading Central entity ID configured"}
+                    continue
+                
+                raw_data = self.api_client.fetch_tc_sentiment_timeseries(entity_id)
                 if raw_data:
-                    history = []
-                    if isinstance(raw_data, dict):
-                        history = raw_data.get('sentimentHistory', []) or []
-                    results[t] = {"ticker": t, "history": history}
+                    # Extract dates and sentiment from response
+                    dates = raw_data.get('dates', []) if isinstance(raw_data, dict) else []
+                    sentiment = raw_data.get('sentiment', []) if isinstance(raw_data, dict) else []
+                    results[t] = {
+                        "ticker": t,
+                        "dates": dates,
+                        "sentiment_score": sentiment
+                    }
                 else:
-                    results[t] = {"ticker": t, "history": [], "error": "No data received"}
+                    results[t] = {"ticker": t, "dates": [], "sentiment_score": [], "error": "No data received"}
             except Exception as e:
                 logger.error(f"Error fetching sentiment history for {t}: {e}")
-                results[t] = {"ticker": t, "history": [], "error": str(e)}
+                results[t] = {"ticker": t, "dates": [], "sentiment_score": [], "error": str(e)}
         
         return results if len(tickers) > 1 else results.get(tickers[0], {})
     
     def get_article_topics(self, ticker: Optional[str] = None) -> Dict[str, Any]:
         """
-        Get article topics data.
+        Get article topics data from Trading Central API.
+        
+        Uses Trading Central article analytics endpoint to get topics distribution.
         
         Args:
             ticker: Optional ticker. If None, fetches for all configured tickers.
@@ -665,12 +710,29 @@ class StockDataService:
         
         for t in tickers:
             try:
-                raw_data = self.api_client.fetch_tipranks_news(t)
+                ticker_config = settings.TICKER_CONFIGS.get(t, {})
+                entity_id = ticker_config.get("tr_v4_id")
+                
+                if not entity_id:
+                    results[t] = {"ticker": t, "topics": [], "error": "No Trading Central entity ID configured"}
+                    continue
+                
+                raw_data = self.api_client.fetch_tc_article_analytics(entity_id)
                 if raw_data:
                     topics = []
                     if isinstance(raw_data, dict):
                         topics = raw_data.get('topics', []) or []
-                    results[t] = {"ticker": t, "topics": topics}
+                    # Process topics using DataFrameOptimizer
+                    topics_processed = self.df_optimizer.process_batch(topics)
+                    # Return DataFrame or list based on type
+                    try:
+                        import pandas as pd
+                        if isinstance(topics_processed, pd.DataFrame):
+                            results[t] = {"ticker": t, "topics": topics_processed}
+                        else:
+                            results[t] = {"ticker": t, "topics": topics}
+                    except ImportError:
+                        results[t] = {"ticker": t, "topics": topics}
                 else:
                     results[t] = {"ticker": t, "topics": [], "error": "No data received"}
             except Exception as e:
