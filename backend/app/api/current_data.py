@@ -35,7 +35,7 @@ from app.schemas.stock_schemas import (
     TargetPriceResponse,
     TimeframeType,
 )
-from app.utils.helpers import normalize_ticker, is_valid_ticker
+from app.utils.helpers import normalize_ticker, is_valid_ticker, map_consensus_to_rating_type
 
 logger = logging.getLogger(__name__)
 
@@ -69,20 +69,27 @@ async def get_analyst_ratings(
     ).order_by(desc(AnalystConsensus.timestamp)).first()
     
     if data:
+        # Map consensus_recommendation to RatingType enum value
+        consensus_rating = map_consensus_to_rating_type(data.consensus_recommendation)
+        
         # Transform to expected response format
         return {
             "id": data.id,
             "ticker": data.ticker,
             "timestamp": data.timestamp,
-            "total_analysts": data.total_ratings,
-            "buy_count": data.buy_ratings,
-            "hold_count": data.hold_ratings,
-            "sell_count": data.sell_ratings,
-            "consensus_rating": data.consensus_recommendation,
+            "strong_buy_count": 0,  # Not available in AnalystConsensus model
+            "buy_count": data.buy_ratings or 0,
+            "hold_count": data.hold_ratings or 0,
+            "sell_count": data.sell_ratings or 0,
+            "strong_sell_count": 0,  # Not available in AnalystConsensus model
+            "total_analysts": data.total_ratings or 0,
+            "consensus_rating": consensus_rating,
             "consensus_score": data.consensus_rating_score,
             "avg_price_target": data.price_target_average,
             "high_price_target": data.price_target_high,
             "low_price_target": data.price_target_low,
+            "current_price": None,  # Not in AnalystConsensus model
+            "upside_potential": None,  # Not in AnalystConsensus model
             "source": data.source,
             "raw_data": data.raw_data,
         }

@@ -28,7 +28,7 @@ from app.models.stock_data import (
     SentimentType,
     RatingType,
 )
-from app.utils.helpers import get_utc_now
+from app.utils.helpers import get_utc_now, map_consensus_to_rating_type
 
 logger = logging.getLogger(__name__)
 
@@ -135,10 +135,17 @@ class DashboardService:
         """
         ticker = ticker.upper().strip()
 
-        # Get latest data for each type
-        analyst_rating = db.query(AnalystRating).filter(
-            AnalystRating.ticker == ticker
-        ).order_by(desc(AnalystRating.timestamp)).first()
+        # Get latest data for each type - try notebook-style tables first, then fall back to legacy
+        
+        # Analyst: try AnalystConsensus first
+        analyst_rating = db.query(AnalystConsensus).filter(
+            AnalystConsensus.ticker == ticker
+        ).order_by(desc(AnalystConsensus.timestamp)).first()
+        
+        if not analyst_rating:
+            analyst_rating = db.query(AnalystRating).filter(
+                AnalystRating.ticker == ticker
+            ).order_by(desc(AnalystRating.timestamp)).first()
 
         news_sentiment = db.query(NewsSentiment).filter(
             NewsSentiment.ticker == ticker
@@ -170,11 +177,31 @@ class DashboardService:
             "blogger_sentiment": self._extract_blogger_summary(blogger),
         }
 
-    def _extract_analyst_summary(self, data: Optional[AnalystRating]) -> Dict[str, Any]:
-        """Extract summary from analyst rating data, with fallback to raw_data"""
+    def _extract_analyst_summary(self, data) -> Dict[str, Any]:
+        """Extract summary from analyst rating data (supports both AnalystRating and AnalystConsensus)"""
         if not data:
             return {}
         
+        # Check if this is AnalystConsensus (notebook-style) or AnalystRating (legacy)
+        is_notebook = hasattr(data, 'consensus_recommendation')
+        
+        if is_notebook:
+            # AnalystConsensus model
+            consensus_rating = map_consensus_to_rating_type(data.consensus_recommendation)
+            return {
+                "timestamp": data.timestamp.isoformat() if data.timestamp else None,
+                "consensus_rating": consensus_rating,
+                "consensus_score": data.consensus_rating_score,
+                "avg_price_target": data.price_target_average,
+                "current_price": None,  # Not available in AnalystConsensus
+                "upside_potential": None,  # Not available in AnalystConsensus
+                "total_analysts": data.total_ratings,
+                "buy_count": data.buy_ratings,
+                "hold_count": data.hold_ratings,
+                "sell_count": data.sell_ratings,
+            }
+        
+        # Legacy AnalystRating model - existing code
         # Get base values from the model
         consensus_rating = data.consensus_rating.value if data.consensus_rating else None
         consensus_score = data.consensus_score
