@@ -22,20 +22,52 @@ const DataCard = ({ title, value, subtitle, color, trend }) => (
 
 /**
  * Get sentiment label from trend action value
- * trend_action: 1 = increasing, -1 = decreasing, 0 = neutral
+ * trendAction mapping: 1=Increase, 2=New, 3=Decrease, 4=Sold Out, 5=No Change
  */
 const getSentimentLabel = (trendAction, sentiment) => {
-  if (trendAction > 0 || sentiment > 0) return { label: 'Accumulating', color: 'success', icon: <TrendingUp /> };
-  if (trendAction < 0 || sentiment < 0) return { label: 'Distributing', color: 'error', icon: <TrendingDown /> };
+  // Use trendAction if available
+  if (trendAction === 1) return { label: 'Increasing', color: 'success', icon: <TrendingUp /> };
+  if (trendAction === 2) return { label: 'New Positions', color: 'success', icon: <TrendingUp /> };
+  if (trendAction === 3) return { label: 'Decreasing', color: 'error', icon: <TrendingDown /> };
+  if (trendAction === 4) return { label: 'Sold Out', color: 'error', icon: <TrendingDown /> };
+  if (trendAction === 5) return { label: 'No Change', color: 'default', icon: <TrendingFlat /> };
+  
+  // Fall back to sentiment if trendAction not available
+  if (sentiment > 0) return { label: 'Accumulating', color: 'success', icon: <TrendingUp /> };
+  if (sentiment < 0) return { label: 'Distributing', color: 'error', icon: <TrendingDown /> };
   return { label: 'Neutral', color: 'default', icon: <TrendingFlat /> };
 };
 
 /**
- * Format sentiment score for display
+ * Format sentiment score for display as percentage
  */
 const formatSentiment = (value) => {
   if (value === null || value === undefined) return 'N/A';
-  return value.toFixed(2);
+  // Convert decimal to percentage (e.g., 0.12 -> 12%)
+  return `${(value * 100).toFixed(1)}%`;
+};
+
+/**
+ * Format trend action for display
+ */
+const formatTrendAction = (value) => {
+  if (value === null || value === undefined) return 'N/A';
+  const labels = {
+    1: 'Increase',
+    2: 'New',
+    3: 'Decrease',
+    4: 'Sold Out',
+    5: 'No Change'
+  };
+  return labels[value] || value;
+};
+
+/**
+ * Format trend value for display (e.g., -41010969 -> -41,010,969)
+ */
+const formatTrendValue = (value) => {
+  if (value === null || value === undefined) return 'N/A';
+  return value.toLocaleString('en-US');
 };
 
 export default function HedgeFund() {
@@ -49,10 +81,18 @@ export default function HedgeFund() {
 
   const hedgeFundData = data?.data || {};
   
-  // Extract notebook-style fields
-  const sentiment = hedgeFundData.sentiment;
-  const trendAction = hedgeFundData.trend_action;
-  const trendValue = hedgeFundData.trend_value;
+  // Extract notebook-style fields with fallback to raw_data
+  let sentiment = hedgeFundData.sentiment;
+  let trendAction = hedgeFundData.trend_action;
+  let trendValue = hedgeFundData.trend_value;
+  
+  // Fallback: Extract from raw_data.hedgeFundData if any field is null
+  if (hedgeFundData.raw_data?.hedgeFundData) {
+    const rawHedgeFund = hedgeFundData.raw_data.hedgeFundData;
+    sentiment = sentiment ?? rawHedgeFund.sentiment;
+    trendAction = trendAction ?? rawHedgeFund.trendAction;
+    trendValue = trendValue ?? rawHedgeFund.trendValue;
+  }
   
   const sentimentInfo = getSentimentLabel(trendAction, sentiment);
 
@@ -88,16 +128,16 @@ export default function HedgeFund() {
           <Grid item xs={12} sm={6} md={4}>
             <DataCard 
               title="Trend Action" 
-              value={trendAction !== null && trendAction !== undefined ? trendAction : 'N/A'}
-              subtitle={trendAction > 0 ? 'Increasing' : trendAction < 0 ? 'Decreasing' : 'Stable'}
-              color={trendAction > 0 ? '#2e7d32' : trendAction < 0 ? '#d32f2f' : 'inherit'}
+              value={formatTrendAction(trendAction)}
+              subtitle={sentimentInfo.label}
+              color={trendAction === 1 || trendAction === 2 ? '#2e7d32' : trendAction === 3 || trendAction === 4 ? '#d32f2f' : 'inherit'}
             />
           </Grid>
           <Grid item xs={12} sm={6} md={4}>
             <DataCard 
               title="Trend Value" 
-              value={trendValue !== null && trendValue !== undefined ? trendValue : 'N/A'}
-              subtitle="Net position change indicator"
+              value={formatTrendValue(trendValue)}
+              subtitle="Net position change (shares)"
             />
           </Grid>
 
@@ -133,13 +173,13 @@ export default function HedgeFund() {
                       <Box display="flex" justifyContent="space-between" mb={1}>
                         <Typography variant="body2">Trend Action:</Typography>
                         <Typography variant="body2" fontWeight="bold">
-                          {trendAction !== null && trendAction !== undefined ? trendAction : 'N/A'}
+                          {formatTrendAction(trendAction)}
                         </Typography>
                       </Box>
                       <Box display="flex" justifyContent="space-between">
                         <Typography variant="body2">Trend Value:</Typography>
                         <Typography variant="body2" fontWeight="bold">
-                          {trendValue !== null && trendValue !== undefined ? trendValue : 'N/A'}
+                          {formatTrendValue(trendValue)}
                         </Typography>
                       </Box>
                     </Box>

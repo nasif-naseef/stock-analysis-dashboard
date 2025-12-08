@@ -199,7 +199,7 @@ class ResponseBuilder:
         """
         Build hedge fund data matching notebook API structure.
         
-        Extracts from: overview.hedgeFundData
+        Extracts from: overview.hedgeFundData or hedgeFundData (fallback)
         
         Args:
             raw_data: Raw API response from TipRanks
@@ -212,7 +212,10 @@ class ResponseBuilder:
             if isinstance(raw_data, list):
                 raw_data = raw_data[0] if raw_data else {}
             
+            # Try overview.hedgeFundData first, then fall back to hedgeFundData at root level
             hedge_fund_data = raw_data.get('overview', {}).get('hedgeFundData', {}) or {}
+            if not hedge_fund_data:
+                hedge_fund_data = raw_data.get('hedgeFundData', {}) or {}
             
             return {
                 "ticker": ticker,
