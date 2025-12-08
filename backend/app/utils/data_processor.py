@@ -167,6 +167,7 @@ class ResponseBuilder:
                 "stock_bearish_score": safe_float(stock_data.get('bearishPercent')),
                 "sector_bullish_score": safe_float(sector_data.get('bullishPercent')),
                 "sector_bearish_score": safe_float(sector_data.get('bearishPercent')),
+                "raw_data": raw_data,  # Include raw_data for fallback extraction
             }
         except Exception as e:
             logger.error(f"Error building news sentiment: {e}")
