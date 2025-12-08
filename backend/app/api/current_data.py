@@ -267,18 +267,54 @@ async def get_crowd_statistics(
     ).order_by(desc(CrowdStats.timestamp)).first()
     
     if data:
+        # Extract values with fallback to raw_data
+        crowd_sentiment = None
+        sentiment_score = data.score  # score maps to sentiment_score
+        mentions_count = data.portfolio_holding or 0
+        total_posts = data.portfolio_holding or 0
+        bullish_percent = None
+        bearish_percent = None
+        neutral_percent = None
+        
+        # Fallback to raw_data if available
+        if data.raw_data and isinstance(data.raw_data, dict):
+            general_stats = data.raw_data.get('generalStatsAll', {})
+            if general_stats:
+                # Extract score for sentiment_score if not already set
+                if sentiment_score is None and 'score' in general_stats:
+                    sentiment_score = general_stats.get('score')
+                # Extract portfoliosHolding for mentions_count/total_posts
+                if 'portfoliosHolding' in general_stats:
+                    portfolios_holding = general_stats.get('portfoliosHolding')
+                    if portfolios_holding:
+                        mentions_count = portfolios_holding
+                        total_posts = portfolios_holding
+        
+        # Determine sentiment from score
+        from app.utils.data_processor import determine_sentiment
+        if sentiment_score is not None:
+            crowd_sentiment = determine_sentiment(sentiment_score)
+        
         # Transform to expected response format
         return {
             "id": data.id,
             "ticker": data.ticker,
             "timestamp": data.timestamp,
-            "portfolio_holding": data.portfolio_holding,
-            "amount_of_portfolios": data.amount_of_portfolios,
-            "percent_allocated": data.percent_allocated,
-            "percent_over_last_7d": data.percent_over_last_7d,
-            "percent_over_last_30d": data.percent_over_last_30d,
-            "score": data.score,
-            "frequency": data.frequency,
+            "crowd_sentiment": crowd_sentiment,
+            "sentiment_score": sentiment_score,
+            "mentions_count": mentions_count,
+            "mentions_change": None,
+            "impressions": 0,
+            "engagement_rate": None,
+            "bullish_percent": bullish_percent,
+            "bearish_percent": bearish_percent,
+            "neutral_percent": neutral_percent,
+            "trending_score": None,
+            "rank_day": None,
+            "rank_week": None,
+            "total_posts": total_posts,
+            "unique_users": 0,
+            "avg_sentiment_post": None,
             "source": data.source,
             "raw_data": data.raw_data,
         }
@@ -320,7 +356,87 @@ async def get_blogger_sentiment(
             detail=f"No blogger sentiment found for ticker {ticker}"
         )
 
-    return data
+    # Extract values with fallback to raw_data
+    blogger_sentiment = None
+    sentiment_score = data.avg  # avg maps to sentiment_score
+    total_articles = (data.bullish_count or 0) + (data.bearish_count or 0) + (data.neutral_count or 0)
+    bullish_articles = data.bullish_count or 0
+    bearish_articles = data.bearish_count or 0
+    neutral_articles = data.neutral_count or 0
+    bullish_percent = data.bullish if data.bullish else None
+    bearish_percent = data.bearish if data.bearish else None
+    
+    # Fallback to raw_data if percentages are not set or counts are zero
+    if data.raw_data and isinstance(data.raw_data, dict):
+        blogger_data = data.raw_data.get('bloggerSentiment', {})
+        if blogger_data:
+            # Extract percentages from strings (e.g., "64" -> 64)
+            if bullish_percent is None or bullish_percent == 0:
+                bullish_str = blogger_data.get('bullish')
+                if bullish_str:
+                    try:
+                        bullish_percent = float(bullish_str)
+                    except (ValueError, TypeError):
+                        pass
+            
+            if bearish_percent is None or bearish_percent == 0:
+                bearish_str = blogger_data.get('bearish')
+                if bearish_str:
+                    try:
+                        bearish_percent = float(bearish_str)
+                    except (ValueError, TypeError):
+                        pass
+            
+            neutral_str = blogger_data.get('neutral')
+            if neutral_str:
+                try:
+                    neutral_percent = float(neutral_str)
+                except (ValueError, TypeError):
+                    neutral_percent = None
+            else:
+                neutral_percent = None
+            
+            # Extract counts if not set
+            if bullish_articles == 0 and 'bullishCount' in blogger_data:
+                bullish_articles = blogger_data.get('bullishCount', 0)
+            if bearish_articles == 0 and 'bearishCount' in blogger_data:
+                bearish_articles = blogger_data.get('bearishCount', 0)
+            if neutral_articles == 0 and 'neutralCount' in blogger_data:
+                neutral_articles = blogger_data.get('neutralCount', 0)
+            
+            # Recalculate total
+            total_articles = bullish_articles + bearish_articles + neutral_articles
+            
+            # Extract sentiment score from avg if not set
+            if sentiment_score is None or sentiment_score == 0:
+                sentiment_score = blogger_data.get('avg')
+    
+    # Determine sentiment from score
+    from app.utils.data_processor import determine_sentiment
+    if sentiment_score is not None:
+        blogger_sentiment = determine_sentiment(sentiment_score)
+    
+    # Transform to expected response format
+    return {
+        "id": data.id,
+        "ticker": data.ticker,
+        "timestamp": data.timestamp,
+        "blogger_sentiment": blogger_sentiment,
+        "sentiment_score": sentiment_score,
+        "total_articles": total_articles,
+        "bullish_articles": bullish_articles,
+        "bearish_articles": bearish_articles,
+        "neutral_articles": neutral_articles,
+        "bullish_percent": bullish_percent,
+        "bearish_percent": bearish_percent,
+        "avg_blogger_accuracy": None,
+        "top_blogger_opinion": None,
+        "sentiment_change_1d": None,
+        "sentiment_change_1w": None,
+        "sentiment_change_1m": None,
+        "source": data.source,
+        "raw_data": data.raw_data,
+    }
 
 
 @router.get(

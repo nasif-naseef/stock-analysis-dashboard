@@ -54,6 +54,31 @@ export default function Crowd() {
   const crowd = data?.data || {};
   const blogger = bloggerData?.data || {};
 
+  // Extract values with fallback to raw_data if needed
+  const getCrowdSentimentScore = () => {
+    if (crowd.sentiment_score !== null && crowd.sentiment_score !== undefined) {
+      return crowd.sentiment_score;
+    }
+    // Fallback to raw_data if available
+    if (crowd.raw_data?.generalStatsAll?.score !== null && crowd.raw_data?.generalStatsAll?.score !== undefined) {
+      return crowd.raw_data.generalStatsAll.score;
+    }
+    return 0;
+  };
+
+  const getCrowdMentions = () => {
+    if (crowd.mentions_count) return crowd.mentions_count;
+    if (crowd.total_posts) return crowd.total_posts;
+    // Fallback to raw_data
+    if (crowd.raw_data?.generalStatsAll?.portfoliosHolding) {
+      return crowd.raw_data.generalStatsAll.portfoliosHolding;
+    }
+    return 0;
+  };
+
+  const sentimentScore = getCrowdSentimentScore();
+  const mentionsCount = getCrowdMentions();
+
   return (
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3} flexWrap="wrap" gap={2}>
@@ -77,28 +102,28 @@ export default function Crowd() {
           <Grid item xs={12} sm={6} md={3}>
             <DataCard 
               title="Crowd Sentiment" 
-              value={(crowd.sentiment_score || 0).toFixed(2)}
-              color={crowd.sentiment_score > 0 ? '#2e7d32' : crowd.sentiment_score < 0 ? '#d32f2f' : 'inherit'}
+              value={sentimentScore.toFixed(2)}
+              color={sentimentScore > 0 ? '#2e7d32' : sentimentScore < 0 ? '#d32f2f' : 'inherit'}
             />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <DataCard 
-              title="Bullish Count" 
-              value={crowd.bullish_count || 0}
+              title="Bullish %" 
+              value={crowd.bullish_percent ? `${crowd.bullish_percent.toFixed(1)}%` : 'N/A'}
               color="#2e7d32"
             />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <DataCard 
-              title="Bearish Count" 
-              value={crowd.bearish_count || 0}
+              title="Bearish %" 
+              value={crowd.bearish_percent ? `${crowd.bearish_percent.toFixed(1)}%` : 'N/A'}
               color="#d32f2f"
             />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <DataCard 
               title="Social Volume" 
-              value={crowd.social_volume || crowd.total_mentions || 0}
+              value={mentionsCount.toLocaleString()}
             />
           </Grid>
 
@@ -106,10 +131,10 @@ export default function Crowd() {
           <Grid item xs={12} md={6}>
             <SentimentChart 
               data={{
-                bullish_count: crowd.bullish_count || 0,
-                neutral_count: crowd.neutral_count || 0,
-                bearish_count: crowd.bearish_count || 0,
-                sentiment_score: crowd.sentiment_score || 0
+                bullish_count: crowd.bullish_percent || 0,
+                neutral_count: crowd.neutral_percent || 0,
+                bearish_count: crowd.bearish_percent || 0,
+                sentiment_score: sentimentScore
               }} 
               title={`${selectedTicker} Crowd Sentiment Distribution`}
             />
@@ -118,7 +143,7 @@ export default function Crowd() {
           {/* Sentiment Gauge */}
           <Grid item xs={12} md={6}>
             <SentimentChart 
-              data={{ sentiment_score: crowd.sentiment_score || 0 }} 
+              data={{ sentiment_score: sentimentScore }} 
               title={`${selectedTicker} Sentiment Score`}
               variant="gauge"
             />
@@ -139,23 +164,9 @@ export default function Crowd() {
                   />
                 ))
               ) : (
-                <>
-                  <SentimentBar 
-                    label="Twitter" 
-                    bullish={crowd.twitter_bullish || Math.floor(crowd.bullish_count * PLATFORM_DISTRIBUTION.TWITTER) || 0}
-                    bearish={crowd.twitter_bearish || Math.floor(crowd.bearish_count * PLATFORM_DISTRIBUTION.TWITTER) || 0}
-                  />
-                  <SentimentBar 
-                    label="Reddit" 
-                    bullish={crowd.reddit_bullish || Math.floor(crowd.bullish_count * PLATFORM_DISTRIBUTION.REDDIT) || 0}
-                    bearish={crowd.reddit_bearish || Math.floor(crowd.bearish_count * PLATFORM_DISTRIBUTION.REDDIT) || 0}
-                  />
-                  <SentimentBar 
-                    label="StockTwits" 
-                    bullish={crowd.stocktwits_bullish || Math.floor(crowd.bullish_count * PLATFORM_DISTRIBUTION.STOCKTWITS) || 0}
-                    bearish={crowd.stocktwits_bearish || Math.floor(crowd.bearish_count * PLATFORM_DISTRIBUTION.STOCKTWITS) || 0}
-                  />
-                </>
+                <Typography variant="body2" color="textSecondary" align="center">
+                  Platform-specific breakdown not available
+                </Typography>
               )}
             </Paper>
           </Grid>
@@ -169,25 +180,32 @@ export default function Crowd() {
                 <Grid item xs={6}>
                   <Typography variant="subtitle2" color="textSecondary">Bullish Bloggers</Typography>
                   <Typography variant="h5" color="success.main">
-                    {blogger.bullish_count || 0}
+                    {blogger.bullish_articles || blogger.bullish_count || 0}
+                  </Typography>
+                  <Typography variant="caption" color="textSecondary">
+                    {blogger.bullish_percent ? `${blogger.bullish_percent.toFixed(0)}%` : ''}
                   </Typography>
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="subtitle2" color="textSecondary">Bearish Bloggers</Typography>
                   <Typography variant="h5" color="error.main">
-                    {blogger.bearish_count || 0}
+                    {blogger.bearish_articles || blogger.bearish_count || 0}
+                  </Typography>
+                  <Typography variant="caption" color="textSecondary">
+                    {blogger.bearish_percent ? `${blogger.bearish_percent.toFixed(0)}%` : ''}
                   </Typography>
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="subtitle2" color="textSecondary">Blogger Sentiment</Typography>
                   <Typography variant="h5">
-                    {blogger.sentiment_score?.toFixed(2) || 'N/A'}
+                    {blogger.sentiment_score ? blogger.sentiment_score.toFixed(2) : 'N/A'}
                   </Typography>
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="subtitle2" color="textSecondary">Total Bloggers</Typography>
                   <Typography variant="h5">
-                    {blogger.total_bloggers || (blogger.bullish_count || 0) + (blogger.bearish_count || 0)}
+                    {blogger.total_articles || 
+                     (blogger.bullish_articles || 0) + (blogger.bearish_articles || 0) + (blogger.neutral_articles || 0)}
                   </Typography>
                 </Grid>
               </Grid>
@@ -203,18 +221,18 @@ export default function Crowd() {
                 <Typography variant="body1">Overall Crowd Sentiment:</Typography>
                 <Chip 
                   label={
-                    crowd.sentiment_score > 0.5 ? 'Very Bullish' :
-                    crowd.sentiment_score > 0.2 ? 'Bullish' :
-                    crowd.sentiment_score > -0.2 ? 'Neutral' :
-                    crowd.sentiment_score > -0.5 ? 'Bearish' : 'Very Bearish'
+                    sentimentScore > 0.5 ? 'Very Bullish' :
+                    sentimentScore > 0.2 ? 'Bullish' :
+                    sentimentScore > -0.2 ? 'Neutral' :
+                    sentimentScore > -0.5 ? 'Bearish' : 'Very Bearish'
                   }
                   color={
-                    crowd.sentiment_score > 0.2 ? 'success' :
-                    crowd.sentiment_score < -0.2 ? 'error' : 'default'
+                    sentimentScore > 0.2 ? 'success' :
+                    sentimentScore < -0.2 ? 'error' : 'default'
                   }
                 />
                 <Typography variant="body2" color="textSecondary">
-                  Based on {(crowd.bullish_count || 0) + (crowd.bearish_count || 0) + (crowd.neutral_count || 0)} mentions
+                  Based on {mentionsCount.toLocaleString()} portfolios holding
                 </Typography>
               </Box>
               {crowd.timestamp && (
