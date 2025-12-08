@@ -22,7 +22,7 @@ const DataCard = ({ title, value, subtitle, color, trend }) => (
 
 /**
  * Get sentiment label from trend action value
- * trendAction mapping: 1=Increase, 2=New, 3=Decrease/Stable, 4=Sold Out, 5=No Change
+ * trendAction mapping: 1=Increase, 2=New, 3=Decrease, 4=Sold Out, 5=No Change
  */
 const getSentimentLabel = (trendAction, sentiment) => {
   // Use trendAction if available
@@ -86,9 +86,9 @@ export default function HedgeFund() {
   let trendAction = hedgeFundData.trend_action;
   let trendValue = hedgeFundData.trend_value;
   
-  // Fallback: Extract from raw_data.hedgeFundData if direct fields are null
-  if ((sentiment === null || sentiment === undefined) && hedgeFundData.raw_data) {
-    const rawHedgeFund = hedgeFundData.raw_data.hedgeFundData || {};
+  // Fallback: Extract from raw_data.hedgeFundData if any field is null
+  if (hedgeFundData.raw_data?.hedgeFundData) {
+    const rawHedgeFund = hedgeFundData.raw_data.hedgeFundData;
     sentiment = sentiment ?? rawHedgeFund.sentiment;
     trendAction = trendAction ?? rawHedgeFund.trendAction;
     trendValue = trendValue ?? rawHedgeFund.trendValue;

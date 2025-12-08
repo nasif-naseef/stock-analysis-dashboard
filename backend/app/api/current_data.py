@@ -184,6 +184,7 @@ async def get_hedge_fund_data(
         )
 
     # Extract fields from raw_data if direct fields are null/None
+    # Note: Modifies data object in-place to enrich response with raw_data fallback
     if data.raw_data and isinstance(data.raw_data, dict):
         # Try to extract from raw_data.hedgeFundData if direct fields are null
         hedge_fund_raw = data.raw_data.get('hedgeFundData', {})

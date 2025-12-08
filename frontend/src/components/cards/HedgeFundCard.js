@@ -31,9 +31,9 @@ export default function HedgeFundCard({ data }) {
   let trendAction = data.trend_action;
   let trendValue = data.trend_value;
   
-  // Fallback: Extract from raw_data.hedgeFundData if direct fields are null
-  if ((sentiment === null || sentiment === undefined) && data.raw_data) {
-    const rawHedgeFund = data.raw_data.hedgeFundData || {};
+  // Fallback: Extract from raw_data.hedgeFundData if any field is null
+  if (data.raw_data?.hedgeFundData) {
+    const rawHedgeFund = data.raw_data.hedgeFundData;
     sentiment = sentiment ?? rawHedgeFund.sentiment;
     trendAction = trendAction ?? rawHedgeFund.trendAction;
     trendValue = trendValue ?? rawHedgeFund.trendValue;
