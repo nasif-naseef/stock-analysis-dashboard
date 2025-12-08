@@ -13,10 +13,12 @@ from sqlalchemy import desc
 from app.database import get_db
 from app.models.stock_data import (
     AnalystRating,
+    AnalystConsensus,
     NewsSentiment,
     QuantamentalScore,
     HedgeFundData,
     CrowdStatistics,
+    CrowdStats,
     BloggerSentiment,
     TechnicalIndicator,
     TargetPrice,
@@ -60,7 +62,32 @@ async def get_analyst_ratings(
 ):
     """Get the latest analyst ratings for a ticker"""
     ticker = _validate_ticker(ticker)
-
+    
+    # Try notebook-style table first
+    data = db.query(AnalystConsensus).filter(
+        AnalystConsensus.ticker == ticker
+    ).order_by(desc(AnalystConsensus.timestamp)).first()
+    
+    if data:
+        # Transform to expected response format
+        return {
+            "id": data.id,
+            "ticker": data.ticker,
+            "timestamp": data.timestamp,
+            "total_analysts": data.total_ratings,
+            "buy_count": data.buy_ratings,
+            "hold_count": data.hold_ratings,
+            "sell_count": data.sell_ratings,
+            "consensus_rating": data.consensus_recommendation,
+            "consensus_score": data.consensus_rating_score,
+            "avg_price_target": data.price_target_average,
+            "high_price_target": data.price_target_high,
+            "low_price_target": data.price_target_low,
+            "source": data.source,
+            "raw_data": data.raw_data,
+        }
+    
+    # Fall back to legacy table
     data = db.query(AnalystRating).filter(
         AnalystRating.ticker == ticker
     ).order_by(desc(AnalystRating.timestamp)).first()
@@ -164,7 +191,30 @@ async def get_crowd_statistics(
 ):
     """Get the latest crowd statistics for a ticker"""
     ticker = _validate_ticker(ticker)
-
+    
+    # Try notebook-style table first
+    data = db.query(CrowdStats).filter(
+        CrowdStats.ticker == ticker
+    ).order_by(desc(CrowdStats.timestamp)).first()
+    
+    if data:
+        # Transform to expected response format
+        return {
+            "id": data.id,
+            "ticker": data.ticker,
+            "timestamp": data.timestamp,
+            "portfolio_holding": data.portfolio_holding,
+            "amount_of_portfolios": data.amount_of_portfolios,
+            "percent_allocated": data.percent_allocated,
+            "percent_over_last_7d": data.percent_over_last_7d,
+            "percent_over_last_30d": data.percent_over_last_30d,
+            "score": data.score,
+            "frequency": data.frequency,
+            "source": data.source,
+            "raw_data": data.raw_data,
+        }
+    
+    # Fall back to legacy table
     data = db.query(CrowdStatistics).filter(
         CrowdStatistics.ticker == ticker
     ).order_by(desc(CrowdStatistics.timestamp)).first()
