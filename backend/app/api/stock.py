@@ -112,6 +112,19 @@ async def get_news_sentiment(
     ticker = _validate_ticker(ticker)
     result = stock_data_service.get_news_sentiment(ticker)
     
+    # Ensure we have data - extract from raw_data if scores are null
+    if result and "error" not in result:
+        if result.get("stock_bullish_score") is None and result.get("raw_data"):
+            raw = result.get("raw_data", {})
+            sentiment_score = raw.get("newsSentimentScore", {})
+            stock = sentiment_score.get("stock", {})
+            sector = sentiment_score.get("sector", {})
+            
+            result["stock_bullish_score"] = stock.get("bullishPercent")
+            result["stock_bearish_score"] = stock.get("bearishPercent")
+            result["sector_bullish_score"] = sector.get("bullishPercent")
+            result["sector_bearish_score"] = sector.get("bearishPercent")
+    
     if result and "error" in result:
         raise HTTPException(status_code=404, detail=result.get("error"))
     

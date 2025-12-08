@@ -280,16 +280,34 @@ class DashboardService:
         }
 
     def _extract_sentiment_summary(self, data: Optional[NewsSentiment]) -> Dict[str, Any]:
-        """Extract summary from news sentiment data"""
+        """Extract summary from news sentiment data with raw_data fallback"""
         if not data:
             return {}
 
-        # Calculate a sentiment indicator based on bullish/bearish scores
+        # Get values from model fields first
+        stock_bullish = data.stock_bullish_score
+        stock_bearish = data.stock_bearish_score
+        sector_bullish = data.sector_bullish_score
+        sector_bearish = data.sector_bearish_score
+
+        # Fallback to raw_data if parsed fields are null
+        if stock_bullish is None and hasattr(data, 'raw_data') and data.raw_data:
+            raw = data.raw_data
+            sentiment_score = raw.get('newsSentimentScore', {})
+            stock_data = sentiment_score.get('stock', {})
+            sector_data = sentiment_score.get('sector', {})
+            
+            stock_bullish = stock_data.get('bullishPercent')
+            stock_bearish = stock_data.get('bearishPercent')
+            sector_bullish = sector_data.get('bullishPercent')
+            sector_bearish = sector_data.get('bearishPercent')
+
+        # Calculate sentiment indicator
         sentiment = None
-        if data.stock_bullish_score is not None and data.stock_bearish_score is not None:
-            if data.stock_bullish_score > data.stock_bearish_score:
+        if stock_bullish is not None and stock_bearish is not None:
+            if stock_bullish > stock_bearish:
                 sentiment = "bullish"
-            elif data.stock_bearish_score > data.stock_bullish_score:
+            elif stock_bearish > stock_bullish:
                 sentiment = "bearish"
             else:
                 sentiment = "neutral"
@@ -297,10 +315,10 @@ class DashboardService:
         return {
             "timestamp": data.timestamp.isoformat() if data.timestamp else None,
             "sentiment": sentiment,
-            "stock_bullish_score": data.stock_bullish_score,
-            "stock_bearish_score": data.stock_bearish_score,
-            "sector_bullish_score": data.sector_bullish_score,
-            "sector_bearish_score": data.sector_bearish_score,
+            "stock_bullish_score": stock_bullish,
+            "stock_bearish_score": stock_bearish,
+            "sector_bullish_score": sector_bullish,
+            "sector_bearish_score": sector_bearish,
         }
 
     def _extract_quantamental_summary(self, data: Optional[QuantamentalScore]) -> Dict[str, Any]:
