@@ -86,6 +86,7 @@ class TestNewsSentimentFix:
         mock_sentiment.stock_bearish_score = None
         mock_sentiment.sector_bullish_score = None
         mock_sentiment.sector_bearish_score = None
+        mock_sentiment.raw_data = None  # Explicitly set to None to prevent MagicMock issues
         
         result = service._extract_sentiment_summary(mock_sentiment)
         
