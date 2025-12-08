@@ -37,12 +37,32 @@ export default function QuantamentalChart({ data, title = 'Quantamental Scores' 
     );
   }
 
+  // Extract scores with fallback to raw_data
+  let value_score = data.value_score;
+  let growth_score = data.growth_score;
+  let quality_score = data.quality_score;
+  let momentum_score = data.momentum_score;
+  let volatility_score = data.volatility_score;
+
+  // Fallback to raw_data if direct fields are null/undefined
+  if ((value_score === null || value_score === undefined) && data.raw_data) {
+    const rawList = Array.isArray(data.raw_data) ? data.raw_data : [data.raw_data];
+    if (rawList.length > 0) {
+      const rawItem = rawList[0];
+      value_score = rawItem.valuation ?? value_score;
+      growth_score = rawItem.growth ?? growth_score;
+      quality_score = rawItem.quality ?? quality_score;
+      momentum_score = rawItem.momentum ?? momentum_score;
+      // volatility is not in the Trading Central API response, keep it as is
+    }
+  }
+
   const scores = {
-    'Value': data.value_score || 0,
-    'Growth': data.growth_score || 0,
-    'Quality': data.quality_score || 0,
-    'Momentum': data.momentum_score || 0,
-    'Volatility': data.volatility_score || 0,
+    'Value': value_score || 0,
+    'Growth': growth_score || 0,
+    'Quality': quality_score || 0,
+    'Momentum': momentum_score || 0,
+    'Volatility': volatility_score || 0,
   };
 
   const radarData = {
