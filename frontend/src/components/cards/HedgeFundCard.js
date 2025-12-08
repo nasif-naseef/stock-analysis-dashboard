@@ -26,7 +26,21 @@ export default function HedgeFundCard({ data }) {
     );
   }
 
+  // Extract with fallback to raw_data
+  let sentiment = data.sentiment;
+  let trendAction = data.trend_action;
+  let trendValue = data.trend_value;
+  
+  // Fallback: Extract from raw_data.hedgeFundData if direct fields are null
+  if ((sentiment === null || sentiment === undefined) && data.raw_data) {
+    const rawHedgeFund = data.raw_data.hedgeFundData || {};
+    sentiment = sentiment ?? rawHedgeFund.sentiment;
+    trendAction = trendAction ?? rawHedgeFund.trendAction;
+    trendValue = trendValue ?? rawHedgeFund.trendValue;
+  }
+
   const getSentimentLabel = (sentiment) => {
+    if (sentiment === null || sentiment === undefined) return { label: 'Unknown', color: 'default' };
     if (sentiment >= 0.6) return { label: 'Very Bullish', color: 'success' };
     if (sentiment >= 0.2) return { label: 'Bullish', color: 'success' };
     if (sentiment >= -0.2) return { label: 'Neutral', color: 'default' };
@@ -35,18 +49,24 @@ export default function HedgeFundCard({ data }) {
   };
 
   const getTrendIcon = (trendAction) => {
-    if (trendAction > 0) return <TrendingUp color="success" />;
-    if (trendAction < 0) return <TrendingDown color="error" />;
+    // Map trendAction values: 1=Increase, 2=New, 3=Decrease, 4=Sold Out, 5=No Change
+    if (trendAction === 1 || trendAction === 2) return <TrendingUp color="success" />;
+    if (trendAction === 3 || trendAction === 4) return <TrendingDown color="error" />;
     return <TrendingFlat color="action" />;
   };
 
   const getTrendLabel = (trendAction) => {
-    if (trendAction > 0) return 'Increasing';
-    if (trendAction < 0) return 'Decreasing';
-    return 'Stable';
+    const labels = {
+      1: 'Increasing',
+      2: 'New Positions',
+      3: 'Decreasing',
+      4: 'Sold Out',
+      5: 'No Change'
+    };
+    return labels[trendAction] || 'Stable';
   };
 
-  const sentiment = data.sentiment || 0;
+  sentiment = sentiment ?? 0;
   const sentimentInfo = getSentimentLabel(sentiment);
 
   return (
@@ -103,14 +123,14 @@ export default function HedgeFundCard({ data }) {
         {/* Trend */}
         <Box display="flex" justifyContent="space-between" alignItems="center">
           <Box display="flex" alignItems="center" gap={1}>
-            {getTrendIcon(data.trend_action)}
+            {getTrendIcon(trendAction)}
             <Typography variant="body2">
-              Trend: {getTrendLabel(data.trend_action)}
+              Trend: {getTrendLabel(trendAction)}
             </Typography>
           </Box>
-          {data.trend_value !== null && data.trend_value !== undefined && (
+          {trendValue !== null && trendValue !== undefined && (
             <Typography variant="body2" color="textSecondary">
-              Value: {data.trend_value}
+              Value: {trendValue.toLocaleString('en-US')}
             </Typography>
           )}
         </Box>
