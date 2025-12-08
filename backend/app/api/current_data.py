@@ -20,6 +20,7 @@ from app.models.stock_data import (
     BloggerSentiment,
     TechnicalIndicator,
     TargetPrice,
+    TimeframeType as ModelTimeframeType,
 )
 from app.schemas.stock_schemas import (
     AnalystRatingResponse,
@@ -223,13 +224,13 @@ async def get_technical_indicators(
     query = db.query(TechnicalIndicator).filter(TechnicalIndicator.ticker == ticker)
 
     if timeframe:
-        # Convert string timeframe to enum if needed
+        # Convert schema TimeframeType to model TimeframeType for SQLAlchemy filtering
         try:
-            timeframe_enum = TimeframeType(timeframe) if isinstance(timeframe, str) else timeframe
+            timeframe_enum = ModelTimeframeType(timeframe.value)
         except ValueError:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid timeframe: {timeframe}. Valid values: {', '.join([t.value for t in TimeframeType])}"
+                detail=f"Invalid timeframe: {timeframe}. Valid values: {', '.join([t.value for t in ModelTimeframeType])}"
             )
         query = query.filter(TechnicalIndicator.timeframe == timeframe_enum)
 
