@@ -321,18 +321,21 @@ class DashboardService:
         if not data:
             return {}
 
-        total = (data.bullish_count or 0) + (data.bearish_count or 0) + (data.neutral_count or 0)
+        bullish = data.bullish_count or 0
+        bearish = data.bearish_count or 0
+        neutral = data.neutral_count or 0
+        total = bullish + bearish + neutral
         
         # Calculate percentages
-        bullish_pct = (data.bullish_count / total * 100) if total > 0 else 0
-        bearish_pct = (data.bearish_count / total * 100) if total > 0 else 0
+        bullish_pct = (bullish / total * 100) if total > 0 else 0
+        bearish_pct = (bearish / total * 100) if total > 0 else 0
         
         # Determine sentiment based on counts
         sentiment = None
-        if data.bullish_count and data.bearish_count:
-            if data.bullish_count > data.bearish_count:
+        if bullish > 0 or bearish > 0:
+            if bullish > bearish:
                 sentiment = "bullish"
-            elif data.bearish_count > data.bullish_count:
+            elif bearish > bullish:
                 sentiment = "bearish"
             else:
                 sentiment = "neutral"

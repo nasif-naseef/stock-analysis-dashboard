@@ -171,6 +171,26 @@ class TestBloggerSentimentFix:
         assert result["total_articles"] == 0
         assert result["bullish_percent"] == 0.0
         assert result["bearish_percent"] == 0.0
+    
+    def test_extract_blogger_summary_with_zero_bearish_count(self):
+        """Test _extract_blogger_summary with zero bearish count"""
+        service = DashboardService()
+        
+        mock_data = MagicMock(spec=BloggerSentiment)
+        mock_data.timestamp = datetime(2023, 1, 1, 12, 0, 0)
+        mock_data.bullish_count = 80
+        mock_data.bearish_count = 0
+        mock_data.neutral_count = 20
+        mock_data.score = 8.0
+        mock_data.avg = 0.80
+        
+        result = service._extract_blogger_summary(mock_data)
+        
+        # Should correctly determine sentiment even when one count is zero
+        assert result["sentiment"] == "bullish"
+        assert result["total_articles"] == 100
+        assert result["bullish_percent"] == 80.0
+        assert result["bearish_percent"] == 0.0
 
 
 class TestHedgeFundAlertsFix:
