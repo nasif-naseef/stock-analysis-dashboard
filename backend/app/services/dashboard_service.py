@@ -293,9 +293,9 @@ class DashboardService:
         # Fallback to raw_data if parsed fields are null
         if stock_bullish is None and hasattr(data, 'raw_data') and data.raw_data:
             raw = data.raw_data
-            sentiment_score = raw.get('newsSentimentScore', {}) or {}
-            stock_data = sentiment_score.get('stock', {}) or {}
-            sector_data = sentiment_score.get('sector', {}) or {}
+            sentiment_score = raw.get('newsSentimentScore', {})
+            stock_data = sentiment_score.get('stock', {})
+            sector_data = sentiment_score.get('sector', {})
             
             stock_bullish = stock_data.get('bullishPercent')
             stock_bearish = stock_data.get('bearishPercent')

@@ -130,7 +130,7 @@ export default function QuantamentalChart({ data, title = 'Quantamental Scores' 
           </Box>
         </Grid>
       </Grid>
-      {data.overall_score != null && (
+      {data.overall_score !== null && data.overall_score !== undefined && (
         <Typography variant="h6" sx={{ mt: 2, textAlign: 'center' }}>
           Overall Score: <strong>{data.overall_score.toFixed(1)}</strong>
         </Typography>

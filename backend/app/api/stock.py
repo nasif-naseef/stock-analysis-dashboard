@@ -116,9 +116,9 @@ async def get_news_sentiment(
     if result and "error" not in result:
         if result.get("stock_bullish_score") is None and result.get("raw_data"):
             raw = result.get("raw_data", {})
-            sentiment_score = raw.get("newsSentimentScore", {}) or {}
-            stock = sentiment_score.get("stock", {}) or {}
-            sector = sentiment_score.get("sector", {}) or {}
+            sentiment_score = raw.get("newsSentimentScore", {})
+            stock = sentiment_score.get("stock", {})
+            sector = sentiment_score.get("sector", {})
             
             result["stock_bullish_score"] = stock.get("bullishPercent")
             result["stock_bearish_score"] = stock.get("bearishPercent")
