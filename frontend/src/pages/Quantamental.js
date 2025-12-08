@@ -50,7 +50,43 @@ export default function Quantamental() {
     { enabled: !!selectedTicker }
   );
 
-  const scores = data?.data || {};
+  // Extract scores with fallback to raw_data
+  const extractScores = (responseData) => {
+    const scores = responseData?.data || {};
+    
+    // If direct score fields are present and not null, use them
+    if (scores.overall_score != null) {
+      return scores;
+    }
+    
+    // Fallback: extract from raw_data if available
+    if (scores.raw_data) {
+      const rawList = Array.isArray(scores.raw_data) ? scores.raw_data : [scores.raw_data];
+      if (rawList.length > 0) {
+        const rawItem = rawList[0];
+        return {
+          ...scores,
+          overall_score: rawItem.quantamental ?? scores.overall_score,
+          value_score: rawItem.valuation ?? scores.value_score,
+          growth_score: rawItem.growth ?? scores.growth_score,
+          quality_score: rawItem.quality ?? scores.quality_score,
+          momentum_score: rawItem.momentum ?? scores.momentum_score,
+          income_score: rawItem.income ?? scores.income_score,
+          // Extract labels
+          overall_label: rawItem.quantamentalLabel?.name,
+          value_label: rawItem.valuationLabel?.name,
+          growth_label: rawItem.growthLabel?.name,
+          quality_label: rawItem.qualityLabel?.name,
+          momentum_label: rawItem.momentumLabel?.name,
+          income_label: rawItem.incomeLabel?.name,
+        };
+      }
+    }
+    
+    return scores;
+  };
+
+  const scores = extractScores(data);
 
   const getOverallColor = (score) => {
     if (score >= 70) return '#2e7d32';

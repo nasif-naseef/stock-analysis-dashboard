@@ -296,14 +296,44 @@ class ResponseBuilder:
                 raw_data = raw_data[0] if raw_data else {}
             raw_data = raw_data or {}
             
+            # Extract scores
+            overall = safe_int(raw_data.get('quantamental'))
+            growth = safe_int(raw_data.get('growth'))
+            value = safe_int(raw_data.get('valuation'))
+            income = safe_int(raw_data.get('income'))
+            quality = safe_int(raw_data.get('quality'))
+            momentum = safe_int(raw_data.get('momentum'))
+            
+            # Extract labels if available
+            overall_label = raw_data.get('quantamentalLabel', {})
+            growth_label = raw_data.get('growthLabel', {})
+            value_label = raw_data.get('valuationLabel', {})
+            income_label = raw_data.get('incomeLabel', {})
+            quality_label = raw_data.get('qualityLabel', {})
+            momentum_label = raw_data.get('momentumLabel', {})
+            
             return {
                 "ticker": ticker,
-                "overall": safe_int(raw_data.get('quantamental')),
-                "growth": safe_int(raw_data.get('growth')),
-                "value": safe_int(raw_data.get('valuation')),
-                "income": safe_int(raw_data.get('income')),
-                "quality": safe_int(raw_data.get('quality')),
-                "momentum": safe_int(raw_data.get('momentum')),
+                # Database model fields (for backward compatibility)
+                "overall": overall,
+                "growth": growth,
+                "value": value,
+                "income": income,
+                "quality": quality,
+                "momentum": momentum,
+                # Response schema fields
+                "overall_score": overall,
+                "growth_score": growth,
+                "value_score": value,
+                "quality_score": quality,
+                "momentum_score": momentum,
+                # Labels
+                "overall_label": overall_label.get('name') if overall_label else None,
+                "growth_label": growth_label.get('name') if growth_label else None,
+                "value_label": value_label.get('name') if value_label else None,
+                "income_label": income_label.get('name') if income_label else None,
+                "quality_label": quality_label.get('name') if quality_label else None,
+                "momentum_label": momentum_label.get('name') if momentum_label else None,
             }
         except Exception as e:
             logger.error(f"Error building quantamental: {e}")
