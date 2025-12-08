@@ -192,8 +192,34 @@ class TestNewsSentimentPercentageConversion:
         
         result = builder.build_news_sentiment(raw_data, "AAPL")
         
-        # 0.0 stays 0.0 (but it's in range 0-1, so it gets multiplied by 100)
+        # 0.0 is in range [0.0, 1.0], so it gets multiplied by 100, resulting in 0.0
         assert result["stock_bullish_score"] == 0.0
         assert result["stock_bearish_score"] == 0.0
         assert result["sector_bullish_score"] == 0.0
         assert result["sector_bearish_score"] == 0.0
+
+    def test_build_news_sentiment_negative_values_not_converted(self):
+        """Test that negative values are not converted (stay as-is)"""
+        builder = ResponseBuilder()
+        
+        raw_data = {
+            "newsSentimentScore": {
+                "stock": {
+                    "bullishPercent": -0.5,  # Negative, should stay -0.5
+                    "bearishPercent": -0.2   # Negative, should stay -0.2
+                },
+                "sector": {
+                    "bullishPercent": -1.0,  # Negative, should stay -1.0
+                    "bearishPercent": 0.5    # Positive decimal, should become 50.0
+                }
+            }
+        }
+        
+        result = builder.build_news_sentiment(raw_data, "AAPL")
+        
+        # Negative values should not be converted
+        assert result["stock_bullish_score"] == -0.5
+        assert result["stock_bearish_score"] == -0.2
+        assert result["sector_bullish_score"] == -1.0
+        # Positive value in valid range should be converted
+        assert result["sector_bearish_score"] == 50.0

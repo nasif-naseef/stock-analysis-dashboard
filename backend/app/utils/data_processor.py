@@ -169,14 +169,14 @@ class ResponseBuilder:
             sector_bearish = safe_float(sector_data.get('bearishPercent'))
             
             # Convert to percentage if values are in decimal format (0-1 range)
-            # Check if value is not None and appears to be in decimal format
-            if stock_bullish is not None and stock_bullish <= 1.0:
+            # Check if value is not None and appears to be in decimal format (0.0 to 1.0)
+            if stock_bullish is not None and 0 <= stock_bullish <= 1.0:
                 stock_bullish = stock_bullish * 100
-            if stock_bearish is not None and stock_bearish <= 1.0:
+            if stock_bearish is not None and 0 <= stock_bearish <= 1.0:
                 stock_bearish = stock_bearish * 100
-            if sector_bullish is not None and sector_bullish <= 1.0:
+            if sector_bullish is not None and 0 <= sector_bullish <= 1.0:
                 sector_bullish = sector_bullish * 100
-            if sector_bearish is not None and sector_bearish <= 1.0:
+            if sector_bearish is not None and 0 <= sector_bearish <= 1.0:
                 sector_bearish = sector_bearish * 100
             
             return {

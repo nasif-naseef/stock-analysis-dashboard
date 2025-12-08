@@ -128,13 +128,14 @@ async def get_news_sentiment(
             sector_bearish = sector.get("bearishPercent")
             
             # Convert from decimal (0-1) to percentage (0-100) if needed
-            if stock_bullish is not None and stock_bullish <= 1.0:
+            # Only convert values in the valid range [0.0, 1.0]
+            if stock_bullish is not None and 0 <= stock_bullish <= 1.0:
                 stock_bullish = stock_bullish * 100
-            if stock_bearish is not None and stock_bearish <= 1.0:
+            if stock_bearish is not None and 0 <= stock_bearish <= 1.0:
                 stock_bearish = stock_bearish * 100
-            if sector_bullish is not None and sector_bullish <= 1.0:
+            if sector_bullish is not None and 0 <= sector_bullish <= 1.0:
                 sector_bullish = sector_bullish * 100
-            if sector_bearish is not None and sector_bearish <= 1.0:
+            if sector_bearish is not None and 0 <= sector_bearish <= 1.0:
                 sector_bearish = sector_bearish * 100
             
             result["stock_bullish_score"] = stock_bullish

@@ -82,17 +82,18 @@ export default function NewsSentiment() {
     sectorBullish = sectorData.bullishPercent;
     sectorBearish = sectorData.bearishPercent;
     
-    // Convert to percentage if values are in decimal format
-    if (stockBullish !== null && stockBullish !== undefined && stockBullish <= 1.0) {
+    // Convert to percentage if values are in decimal format (0.0 to 1.0)
+    // Only convert values in the valid range [0.0, 1.0]
+    if (stockBullish !== null && stockBullish !== undefined && stockBullish >= 0 && stockBullish <= 1.0) {
       stockBullish = stockBullish * 100;
     }
-    if (stockBearish !== null && stockBearish !== undefined && stockBearish <= 1.0) {
+    if (stockBearish !== null && stockBearish !== undefined && stockBearish >= 0 && stockBearish <= 1.0) {
       stockBearish = stockBearish * 100;
     }
-    if (sectorBullish !== null && sectorBullish !== undefined && sectorBullish <= 1.0) {
+    if (sectorBullish !== null && sectorBullish !== undefined && sectorBullish >= 0 && sectorBullish <= 1.0) {
       sectorBullish = sectorBullish * 100;
     }
-    if (sectorBearish !== null && sectorBearish !== undefined && sectorBearish <= 1.0) {
+    if (sectorBearish !== null && sectorBearish !== undefined && sectorBearish >= 0 && sectorBearish <= 1.0) {
       sectorBearish = sectorBearish * 100;
     }
   }
