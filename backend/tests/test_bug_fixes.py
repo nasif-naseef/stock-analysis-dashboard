@@ -184,3 +184,58 @@ class TestTimeframeTypeEnumFix:
         assert TimeframeType.ONE_HOUR.value == "1h"
         assert TimeframeType.ONE_WEEK.value == "1w"
         assert TimeframeType.ONE_MONTH.value == "1M"
+
+
+class TestQuantamentalScoreFieldMapping:
+    """Tests for QuantamentalScore field name mapping fix"""
+    
+    def test_extract_quantamental_summary_with_valid_data(self):
+        """Test _extract_quantamental_summary uses correct field names"""
+        service = DashboardService()
+        
+        # Create mock QuantamentalScore with correct field names
+        mock_score = MagicMock(spec=QuantamentalScore)
+        mock_score.timestamp = datetime(2023, 1, 1, 12, 0, 0)
+        mock_score.overall = 85
+        mock_score.quality = 90
+        mock_score.value = 80
+        mock_score.growth = 85
+        mock_score.momentum = 88
+        
+        result = service._extract_quantamental_summary(mock_score)
+        
+        assert result["overall_score"] == 85
+        assert result["quality_score"] == 90
+        assert result["value_score"] == 80
+        assert result["growth_score"] == 85
+        assert result["momentum_score"] == 88
+        assert result["timestamp"] == "2023-01-01T12:00:00"
+    
+    def test_extract_quantamental_summary_with_none(self):
+        """Test _extract_quantamental_summary handles None data"""
+        service = DashboardService()
+        
+        result = service._extract_quantamental_summary(None)
+        
+        assert result == {}
+    
+    def test_extract_quantamental_summary_with_none_values(self):
+        """Test _extract_quantamental_summary handles None field values"""
+        service = DashboardService()
+        
+        # Create mock with None values
+        mock_score = MagicMock(spec=QuantamentalScore)
+        mock_score.timestamp = datetime(2023, 1, 1, 12, 0, 0)
+        mock_score.overall = None
+        mock_score.quality = None
+        mock_score.value = None
+        mock_score.growth = None
+        mock_score.momentum = None
+        
+        result = service._extract_quantamental_summary(mock_score)
+        
+        assert result["overall_score"] is None
+        assert result["quality_score"] is None
+        assert result["value_score"] is None
+        assert result["growth_score"] is None
+        assert result["momentum_score"] is None
