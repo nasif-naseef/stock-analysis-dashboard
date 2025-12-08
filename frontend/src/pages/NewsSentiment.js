@@ -64,11 +64,38 @@ export default function NewsSentiment() {
 
   const sentiment = data?.data || {};
   
-  // Extract notebook-style fields
-  const stockBullish = sentiment.stock_bullish_score;
-  const stockBearish = sentiment.stock_bearish_score;
-  const sectorBullish = sentiment.sector_bullish_score;
-  const sectorBearish = sentiment.sector_bearish_score;
+  // Extract notebook-style fields with fallback to raw_data
+  let stockBullish = sentiment.stock_bullish_score;
+  let stockBearish = sentiment.stock_bearish_score;
+  let sectorBullish = sentiment.sector_bullish_score;
+  let sectorBearish = sentiment.sector_bearish_score;
+  
+  // Fallback: Extract from raw_data if direct fields are null/undefined
+  if ((stockBullish === null || stockBullish === undefined) && sentiment.raw_data) {
+    const rawSentiment = sentiment.raw_data.newsSentimentScore || {};
+    const stockData = rawSentiment.stock || {};
+    const sectorData = rawSentiment.sector || {};
+    
+    // Extract and convert from decimal (0-1) to percentage (0-100) if needed
+    stockBullish = stockData.bullishPercent;
+    stockBearish = stockData.bearishPercent;
+    sectorBullish = sectorData.bullishPercent;
+    sectorBearish = sectorData.bearishPercent;
+    
+    // Convert to percentage if values are in decimal format
+    if (stockBullish !== null && stockBullish !== undefined && stockBullish <= 1.0) {
+      stockBullish = stockBullish * 100;
+    }
+    if (stockBearish !== null && stockBearish !== undefined && stockBearish <= 1.0) {
+      stockBearish = stockBearish * 100;
+    }
+    if (sectorBullish !== null && sectorBullish !== undefined && sectorBullish <= 1.0) {
+      sectorBullish = sectorBullish * 100;
+    }
+    if (sectorBearish !== null && sectorBearish !== undefined && sectorBearish <= 1.0) {
+      sectorBearish = sectorBearish * 100;
+    }
+  }
   
   // Calculate sentiment score from bullish/bearish
   const sentimentScore = calculateSentimentScore(stockBullish, stockBearish);

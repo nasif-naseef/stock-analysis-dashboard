@@ -113,6 +113,7 @@ async def get_news_sentiment(
     result = stock_data_service.get_news_sentiment(ticker)
     
     # Ensure we have data - extract from raw_data if scores are null
+    # Convert decimal values (0-1) to percentage (0-100) if needed
     if result and "error" not in result:
         if result.get("stock_bullish_score") is None and result.get("raw_data"):
             raw = result.get("raw_data", {})
@@ -120,10 +121,26 @@ async def get_news_sentiment(
             stock = sentiment_score.get("stock", {})
             sector = sentiment_score.get("sector", {})
             
-            result["stock_bullish_score"] = stock.get("bullishPercent")
-            result["stock_bearish_score"] = stock.get("bearishPercent")
-            result["sector_bullish_score"] = sector.get("bullishPercent")
-            result["sector_bearish_score"] = sector.get("bearishPercent")
+            # Extract values and convert to percentage if in decimal format
+            stock_bullish = stock.get("bullishPercent")
+            stock_bearish = stock.get("bearishPercent")
+            sector_bullish = sector.get("bullishPercent")
+            sector_bearish = sector.get("bearishPercent")
+            
+            # Convert from decimal (0-1) to percentage (0-100) if needed
+            if stock_bullish is not None and stock_bullish <= 1.0:
+                stock_bullish = stock_bullish * 100
+            if stock_bearish is not None and stock_bearish <= 1.0:
+                stock_bearish = stock_bearish * 100
+            if sector_bullish is not None and sector_bullish <= 1.0:
+                sector_bullish = sector_bullish * 100
+            if sector_bearish is not None and sector_bearish <= 1.0:
+                sector_bearish = sector_bearish * 100
+            
+            result["stock_bullish_score"] = stock_bullish
+            result["stock_bearish_score"] = stock_bearish
+            result["sector_bullish_score"] = sector_bullish
+            result["sector_bearish_score"] = sector_bearish
     
     if result and "error" in result:
         raise HTTPException(status_code=404, detail=result.get("error"))

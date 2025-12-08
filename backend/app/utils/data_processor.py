@@ -145,13 +145,14 @@ class ResponseBuilder:
         Build news sentiment data matching notebook API structure.
         
         Extracts from: newsSentimentScore.stock, newsSentimentScore.sector
+        Converts decimal values (0-1) to percentage (0-100)
         
         Args:
             raw_data: Raw API response from TipRanks
             ticker: Stock ticker symbol
             
         Returns:
-            Dictionary with parsed news sentiment fields
+            Dictionary with parsed news sentiment fields (percentages 0-100)
         """
         try:
             if isinstance(raw_data, list):
@@ -161,12 +162,29 @@ class ResponseBuilder:
             stock_data = sentiment_data.get('stock', {}) or {}
             sector_data = sentiment_data.get('sector', {}) or {}
             
+            # Extract values and convert from decimal (0-1) to percentage (0-100)
+            stock_bullish = safe_float(stock_data.get('bullishPercent'))
+            stock_bearish = safe_float(stock_data.get('bearishPercent'))
+            sector_bullish = safe_float(sector_data.get('bullishPercent'))
+            sector_bearish = safe_float(sector_data.get('bearishPercent'))
+            
+            # Convert to percentage if values are in decimal format (0-1 range)
+            # Check if value is not None and appears to be in decimal format
+            if stock_bullish is not None and stock_bullish <= 1.0:
+                stock_bullish = stock_bullish * 100
+            if stock_bearish is not None and stock_bearish <= 1.0:
+                stock_bearish = stock_bearish * 100
+            if sector_bullish is not None and sector_bullish <= 1.0:
+                sector_bullish = sector_bullish * 100
+            if sector_bearish is not None and sector_bearish <= 1.0:
+                sector_bearish = sector_bearish * 100
+            
             return {
                 "ticker": ticker,
-                "stock_bullish_score": safe_float(stock_data.get('bullishPercent')),
-                "stock_bearish_score": safe_float(stock_data.get('bearishPercent')),
-                "sector_bullish_score": safe_float(sector_data.get('bullishPercent')),
-                "sector_bearish_score": safe_float(sector_data.get('bearishPercent')),
+                "stock_bullish_score": stock_bullish,
+                "stock_bearish_score": stock_bearish,
+                "sector_bullish_score": sector_bullish,
+                "sector_bearish_score": sector_bearish,
                 "raw_data": raw_data,  # Include raw_data for fallback extraction
             }
         except Exception as e:
