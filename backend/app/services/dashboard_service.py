@@ -17,12 +17,13 @@ from sqlalchemy import desc, func
 from app.config import settings
 from app.models.stock_data import (
     AnalystRating,
+    AnalystConsensus,
     NewsSentiment,
     QuantamentalScore,
     HedgeFundData,
     CrowdStatistics,
+    CrowdStats,
     BloggerSentiment,
-    
     DataCollectionLog,
     SentimentType,
     RatingType,
@@ -296,10 +297,9 @@ class DashboardService:
 
         return {
             "timestamp": data.timestamp.isoformat() if data.timestamp else None,
-            "sentiment": data.hedge_fund_sentiment.value if data.hedge_fund_sentiment else None,
-            "institutional_ownership_pct": data.institutional_ownership_pct,
-            "hedge_fund_count": data.hedge_fund_count,
-            "smart_money_score": data.smart_money_score,
+            "sentiment": data.sentiment,  # Float value, not enum
+            "trend_action": data.trend_action,
+            "trend_value": data.trend_value,
         }
 
     def _extract_crowd_summary(self, data: Optional[CrowdStatistics]) -> Dict[str, Any]:
@@ -321,13 +321,36 @@ class DashboardService:
         if not data:
             return {}
 
+        bullish = data.bullish_count or 0
+        bearish = data.bearish_count or 0
+        neutral = data.neutral_count or 0
+        total = bullish + bearish + neutral
+        
+        # Calculate percentages
+        bullish_pct = (bullish / total * 100) if total > 0 else 0
+        bearish_pct = (bearish / total * 100) if total > 0 else 0
+        
+        # Determine sentiment based on counts
+        sentiment = None
+        if bullish > 0 or bearish > 0:
+            if bullish > bearish:
+                sentiment = "bullish"
+            elif bearish > bullish:
+                sentiment = "bearish"
+            else:
+                sentiment = "neutral"
+
         return {
             "timestamp": data.timestamp.isoformat() if data.timestamp else None,
-            "sentiment": data.blogger_sentiment.value if data.blogger_sentiment else None,
-            "sentiment_score": data.sentiment_score,
-            "bullish_percent": data.bullish_percent,
-            "bearish_percent": data.bearish_percent,
-            "total_articles": data.total_articles,
+            "sentiment": sentiment,
+            "sentiment_score": data.score,
+            "bullish_percent": round(bullish_pct, 2),
+            "bearish_percent": round(bearish_pct, 2),
+            "total_articles": total,
+            "bullish_count": data.bullish_count,
+            "bearish_count": data.bearish_count,
+            "neutral_count": data.neutral_count,
+            "avg": data.avg,
         }
 
     def get_alerts(
@@ -525,29 +548,25 @@ class DashboardService:
         ).order_by(desc(HedgeFundData.timestamp)).first()
 
         if current and previous:
-            # Check for significant position changes
-            new_positions = (current.new_positions or 0) + (current.increased_positions or 0)
-            closed_positions = (current.closed_positions or 0) + (current.decreased_positions or 0)
-
-            if new_positions >= 5 or closed_positions >= 5:
-                severity = AlertSeverity.MEDIUM.value
-                if new_positions >= 10 or closed_positions >= 10:
-                    severity = AlertSeverity.HIGH.value
-
-                activity_type = "accumulation" if new_positions > closed_positions else "distribution"
-                alerts.append({
-                    "ticker": ticker,
-                    "type": AlertType.HEDGE_FUND_ACTIVITY.value,
-                    "severity": severity,
-                    "timestamp": current.timestamp.isoformat() if current.timestamp else None,
-                    "message": f"Significant hedge fund {activity_type} detected",
-                    "data": {
-                        "new_positions": current.new_positions,
-                        "increased_positions": current.increased_positions,
-                        "decreased_positions": current.decreased_positions,
-                        "closed_positions": current.closed_positions,
-                    },
-                })
+            # Check for significant sentiment changes
+            if current.sentiment is not None and previous.sentiment is not None:
+                sentiment_change = abs(current.sentiment - previous.sentiment)
+                if sentiment_change >= 0.1:  # 10% change threshold
+                    severity = AlertSeverity.MEDIUM.value if sentiment_change < 0.2 else AlertSeverity.HIGH.value
+                    
+                    alerts.append({
+                        "ticker": ticker,
+                        "type": AlertType.HEDGE_FUND_ACTIVITY.value,
+                        "severity": severity,
+                        "timestamp": current.timestamp.isoformat() if current.timestamp else None,
+                        "message": f"Hedge fund sentiment changed by {sentiment_change:.1%}",
+                        "data": {
+                            "previous_sentiment": previous.sentiment,
+                            "current_sentiment": current.sentiment,
+                            "trend_action": current.trend_action,
+                            "trend_value": current.trend_value,
+                        },
+                    })
 
         return alerts
 
