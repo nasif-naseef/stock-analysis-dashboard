@@ -282,11 +282,11 @@ class DashboardService:
 
         return {
             "timestamp": data.timestamp.isoformat() if data.timestamp else None,
-            "overall_score": data.overall_score,
-            "quality_score": data.quality_score,
-            "value_score": data.value_score,
-            "growth_score": data.growth_score,
-            "momentum_score": data.momentum_score,
+            "overall_score": data.overall,
+            "quality_score": data.quality,
+            "value_score": data.value,
+            "growth_score": data.growth,
+            "momentum_score": data.momentum,
         }
 
     def _extract_hedge_fund_summary(self, data: Optional[HedgeFundData]) -> Dict[str, Any]:
