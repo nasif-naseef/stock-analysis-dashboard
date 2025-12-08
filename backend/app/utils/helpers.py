@@ -167,3 +167,42 @@ def setup_logger(name: str, level: int = logging.INFO) -> logging.Logger:
         log.addHandler(handler)
     
     return log
+
+
+def map_consensus_to_rating_type(consensus: Optional[str]) -> Optional[str]:
+    """
+    Map TipRanks consensus string to RatingType enum value.
+    
+    TipRanks returns values like "Strong Buy", "Moderate Buy", "Buy", "Hold", 
+    "Moderate Sell", "Sell", "Strong Sell". This function maps them to the
+    corresponding RatingType enum values.
+    
+    Args:
+        consensus: The consensus string from TipRanks API
+        
+    Returns:
+        The corresponding RatingType enum value as a string, or None if invalid
+    """
+    if not consensus:
+        return None
+    
+    consensus_lower = consensus.lower().strip()
+    
+    if "strong buy" in consensus_lower:
+        return "strong_buy"
+    elif "moderate buy" in consensus_lower:
+        return "moderate_buy"
+    elif "strong sell" in consensus_lower:
+        return "strong_sell"
+    elif "moderate sell" in consensus_lower:
+        return "moderate_sell"
+    elif consensus_lower == "buy":
+        return "buy"
+    elif consensus_lower == "sell":
+        return "sell"
+    elif "hold" in consensus_lower or "neutral" in consensus_lower:
+        return "hold"
+    else:
+        # Default fallback to hold for unknown values
+        logger.warning(f"Unknown consensus value: {consensus}, defaulting to 'hold'")
+        return "hold"

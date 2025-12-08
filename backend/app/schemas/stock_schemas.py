@@ -23,9 +23,11 @@ class SentimentType(str, Enum):
 class RatingType(str, Enum):
     """Enum for analyst rating types"""
     STRONG_BUY = "strong_buy"
+    MODERATE_BUY = "moderate_buy"
     BUY = "buy"
     HOLD = "hold"
     SELL = "sell"
+    MODERATE_SELL = "moderate_sell"
     STRONG_SELL = "strong_sell"
 
 
