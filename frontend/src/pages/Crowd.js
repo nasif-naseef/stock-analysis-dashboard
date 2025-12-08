@@ -164,23 +164,9 @@ export default function Crowd() {
                   />
                 ))
               ) : (
-                <>
-                  <SentimentBar 
-                    label="Twitter" 
-                    bullish={crowd.twitter_bullish || Math.floor((crowd.bullish_percent || 0) * PLATFORM_DISTRIBUTION.TWITTER) || 0}
-                    bearish={crowd.twitter_bearish || Math.floor((crowd.bearish_percent || 0) * PLATFORM_DISTRIBUTION.TWITTER) || 0}
-                  />
-                  <SentimentBar 
-                    label="Reddit" 
-                    bullish={crowd.reddit_bullish || Math.floor((crowd.bullish_percent || 0) * PLATFORM_DISTRIBUTION.REDDIT) || 0}
-                    bearish={crowd.reddit_bearish || Math.floor((crowd.bearish_percent || 0) * PLATFORM_DISTRIBUTION.REDDIT) || 0}
-                  />
-                  <SentimentBar 
-                    label="StockTwits" 
-                    bullish={crowd.stocktwits_bullish || Math.floor((crowd.bullish_percent || 0) * PLATFORM_DISTRIBUTION.STOCKTWITS) || 0}
-                    bearish={crowd.stocktwits_bearish || Math.floor((crowd.bearish_percent || 0) * PLATFORM_DISTRIBUTION.STOCKTWITS) || 0}
-                  />
-                </>
+                <Typography variant="body2" color="textSecondary" align="center">
+                  Platform-specific breakdown not available
+                </Typography>
               )}
             </Paper>
           </Grid>

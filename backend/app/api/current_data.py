@@ -291,8 +291,8 @@ async def get_crowd_statistics(
                         total_posts = portfolios_holding
         
         # Determine sentiment from score
+        from app.utils.data_processor import determine_sentiment
         if sentiment_score is not None:
-            from app.utils.data_processor import determine_sentiment
             crowd_sentiment = determine_sentiment(sentiment_score)
         
         # Transform to expected response format
@@ -412,8 +412,8 @@ async def get_blogger_sentiment(
                 sentiment_score = blogger_data.get('avg')
     
     # Determine sentiment from score
+    from app.utils.data_processor import determine_sentiment
     if sentiment_score is not None:
-        from app.utils.data_processor import determine_sentiment
         blogger_sentiment = determine_sentiment(sentiment_score)
     
     # Transform to expected response format

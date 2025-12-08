@@ -294,15 +294,24 @@ class TestBloggerSentimentFallbackLogic:
             if blogger_data:
                 bullish_str = blogger_data.get('bullish')
                 if bullish_str:
-                    bullish_percent = float(bullish_str)
+                    try:
+                        bullish_percent = float(bullish_str)
+                    except (ValueError, TypeError):
+                        pass
                 
                 bearish_str = blogger_data.get('bearish')
                 if bearish_str:
-                    bearish_percent = float(bearish_str)
+                    try:
+                        bearish_percent = float(bearish_str)
+                    except (ValueError, TypeError):
+                        pass
                 
                 neutral_str = blogger_data.get('neutral')
                 if neutral_str:
-                    neutral_percent = float(neutral_str)
+                    try:
+                        neutral_percent = float(neutral_str)
+                    except (ValueError, TypeError):
+                        pass
         
         # Verify string to float conversion
         assert bullish_percent == 64.0
