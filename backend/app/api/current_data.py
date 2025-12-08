@@ -183,6 +183,18 @@ async def get_hedge_fund_data(
             detail=f"No hedge fund data found for ticker {ticker}"
         )
 
+    # Extract fields from raw_data if direct fields are null/None
+    if data.raw_data and isinstance(data.raw_data, dict):
+        # Try to extract from raw_data.hedgeFundData if direct fields are null
+        hedge_fund_raw = data.raw_data.get('hedgeFundData', {})
+        if hedge_fund_raw:
+            if data.sentiment is None and 'sentiment' in hedge_fund_raw:
+                data.sentiment = hedge_fund_raw.get('sentiment')
+            if data.trend_action is None and 'trendAction' in hedge_fund_raw:
+                data.trend_action = hedge_fund_raw.get('trendAction')
+            if data.trend_value is None and 'trendValue' in hedge_fund_raw:
+                data.trend_value = hedge_fund_raw.get('trendValue')
+
     return data
 
 
