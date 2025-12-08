@@ -176,6 +176,23 @@ async def get_quantamental_scores(
             quality_score = raw_item.get('quality')
             momentum_score = raw_item.get('momentum')
 
+    # Default values for fields not available in current model
+    UNAVAILABLE_FIELDS = {
+        "revenue_growth": None,
+        "earnings_growth": None,
+        "profit_margin": None,
+        "debt_to_equity": None,
+        "return_on_equity": None,
+        "pe_ratio": None,
+        "pb_ratio": None,
+        "ps_ratio": None,
+        "peg_ratio": None,
+        "ev_ebitda": None,
+        "sector_rank": None,
+        "industry_rank": None,
+        "overall_rank": None,
+    }
+
     # Transform to expected response format
     return {
         "id": data.id,
@@ -186,19 +203,7 @@ async def get_quantamental_scores(
         "value_score": value_score,
         "growth_score": growth_score,
         "momentum_score": momentum_score,
-        "revenue_growth": None,  # Not available in current model
-        "earnings_growth": None,  # Not available in current model
-        "profit_margin": None,  # Not available in current model
-        "debt_to_equity": None,  # Not available in current model
-        "return_on_equity": None,  # Not available in current model
-        "pe_ratio": None,  # Not available in current model
-        "pb_ratio": None,  # Not available in current model
-        "ps_ratio": None,  # Not available in current model
-        "peg_ratio": None,  # Not available in current model
-        "ev_ebitda": None,  # Not available in current model
-        "sector_rank": None,  # Not available in current model
-        "industry_rank": None,  # Not available in current model
-        "overall_rank": None,  # Not available in current model
+        **UNAVAILABLE_FIELDS,
         "source": data.source,
         "raw_data": data.raw_data,
     }

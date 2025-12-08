@@ -45,7 +45,7 @@ export default function QuantamentalChart({ data, title = 'Quantamental Scores' 
   let volatility_score = data.volatility_score;
 
   // Fallback to raw_data if direct fields are null/undefined
-  if ((value_score === null || value_score === undefined) && data.raw_data) {
+  if (value_score == null && data.raw_data) {
     const rawList = Array.isArray(data.raw_data) ? data.raw_data : [data.raw_data];
     if (rawList.length > 0) {
       const rawItem = rawList[0];

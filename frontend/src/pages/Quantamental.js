@@ -55,7 +55,7 @@ export default function Quantamental() {
     const scores = responseData?.data || {};
     
     // If direct score fields are present and not null, use them
-    if (scores.overall_score !== null && scores.overall_score !== undefined) {
+    if (scores.overall_score != null) {
       return scores;
     }
     
