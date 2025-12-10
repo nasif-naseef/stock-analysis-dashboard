@@ -313,12 +313,8 @@ class ResponseBuilder:
             if score is not None:
                 # Convert score to percentage interpretation
                 # Score of 0.5 = 50/50, Score of 1.0 = 100% bullish
-                if score >= 0.5:
-                    bullish_percent = score * 100
-                    bearish_percent = (1 - score) * 100
-                else:
-                    bullish_percent = score * 100
-                    bearish_percent = (1 - score) * 100
+                bullish_percent = score * 100
+                bearish_percent = (1 - score) * 100
                 neutral_percent = 0  # TipRanks crowd doesn't have neutral
             
             # Determine sentiment based on score vs sector average
@@ -398,23 +394,10 @@ class ResponseBuilder:
             
             blogger_data = raw_data.get('bloggerSentiment', {}) or {}
             
-            # Convert string percentages to floats/integers
-            def safe_parse_percent(value):
-                """Safely parse percentage value that may be string or number"""
-                if value is None:
-                    return None
-                if isinstance(value, (int, float)):
-                    return float(value)
-                if isinstance(value, str):
-                    try:
-                        return float(value)
-                    except (ValueError, TypeError):
-                        return None
-                return None
-            
-            bullish_percent = safe_parse_percent(blogger_data.get('bullish'))
-            bearish_percent = safe_parse_percent(blogger_data.get('bearish'))
-            neutral_percent = safe_parse_percent(blogger_data.get('neutral'))
+            # Convert string percentages to floats using safe_parse_number helper
+            bullish_percent = self.safe_parse_number(blogger_data.get('bullish'))
+            bearish_percent = self.safe_parse_number(blogger_data.get('bearish'))
+            neutral_percent = self.safe_parse_number(blogger_data.get('neutral'))
             
             # Get counts (these are already integers from API)
             bullish_count = blogger_data.get('bullishCount', 0) or 0
