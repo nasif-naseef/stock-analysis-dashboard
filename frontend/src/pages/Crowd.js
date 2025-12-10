@@ -6,7 +6,6 @@ import TickerSelector from '../components/TickerSelector';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
 import SentimentChart from '../components/charts/SentimentChart';
-import { PLATFORM_DISTRIBUTION } from '../utils/constants';
 
 const DataCard = ({ title, value, subtitle, color }) => (
   <Paper sx={{ p: 2, height: '100%' }}>
@@ -76,8 +75,89 @@ export default function Crowd() {
     return 0;
   };
 
+  const getBloggerData = () => {
+    // Primary extraction from direct fields
+    let bullishArticles = blogger.bullish_articles || blogger.bullish_count || 0;
+    let bearishArticles = blogger.bearish_articles || blogger.bearish_count || 0;
+    let neutralArticles = blogger.neutral_articles || blogger.neutral_count || 0;
+    let bullishPercent = blogger.bullish_percent;
+    let bearishPercent = blogger.bearish_percent;
+    let sentimentScore = blogger.sentiment_score;
+    
+    // Fallback to raw_data.bloggerSentiment if fields are null/zero
+    if (blogger.raw_data?.bloggerSentiment) {
+      const rawBlogger = blogger.raw_data.bloggerSentiment;
+      
+      // Extract counts (use explicit null/undefined checks to preserve zero values)
+      if ((bullishArticles === null || bullishArticles === undefined) && rawBlogger.bullishCount !== undefined) {
+        bullishArticles = rawBlogger.bullishCount;
+      }
+      if ((bearishArticles === null || bearishArticles === undefined) && rawBlogger.bearishCount !== undefined) {
+        bearishArticles = rawBlogger.bearishCount;
+      }
+      if ((neutralArticles === null || neutralArticles === undefined) && rawBlogger.neutralCount !== undefined) {
+        neutralArticles = rawBlogger.neutralCount;
+      }
+      
+      // Extract percentages (convert strings to numbers)
+      if ((bullishPercent === null || bullishPercent === undefined) && rawBlogger.bullish) {
+        bullishPercent = parseFloat(rawBlogger.bullish) || 0;
+      }
+      if ((bearishPercent === null || bearishPercent === undefined) && rawBlogger.bearish) {
+        bearishPercent = parseFloat(rawBlogger.bearish) || 0;
+      }
+      
+      // Extract sentiment score
+      if ((sentimentScore === null || sentimentScore === undefined) && rawBlogger.avg) {
+        sentimentScore = rawBlogger.avg;
+      }
+    }
+    
+    const totalArticles = bullishArticles + bearishArticles + neutralArticles;
+    
+    return {
+      bullishArticles,
+      bearishArticles,
+      neutralArticles,
+      totalArticles,
+      bullishPercent,
+      bearishPercent,
+      sentimentScore,
+    };
+  };
+
+  const getCrowdBullishPercent = () => {
+    if (crowd.bullish_percent !== null && crowd.bullish_percent !== undefined) {
+      return crowd.bullish_percent;
+    }
+    // Crowd wisdom doesn't have direct bullish/bearish from generalStatsAll
+    // The score indicates overall sentiment, convert to a pseudo-percentage
+    const score = getCrowdSentimentScore();
+    if (score !== null && score !== undefined) {
+      // Score is typically in 0-1 range from sentiment analysis
+      // Convert to percentage interpretation (0-100)
+      return score * 100;
+    }
+    return null;
+  };
+
+  const getCrowdBearishPercent = () => {
+    if (crowd.bearish_percent !== null && crowd.bearish_percent !== undefined) {
+      return crowd.bearish_percent;
+    }
+    // Calculate inverse of bullish for consistency
+    const bullishPercent = getCrowdBullishPercent();
+    if (bullishPercent !== null) {
+      return 100 - bullishPercent;
+    }
+    return null;
+  };
+
   const sentimentScore = getCrowdSentimentScore();
   const mentionsCount = getCrowdMentions();
+  const bloggerExtracted = getBloggerData();
+  const crowdBullishPercent = getCrowdBullishPercent();
+  const crowdBearishPercent = getCrowdBearishPercent();
 
   return (
     <Box>
@@ -109,14 +189,14 @@ export default function Crowd() {
           <Grid item xs={12} sm={6} md={3}>
             <DataCard 
               title="Bullish %" 
-              value={crowd.bullish_percent ? `${crowd.bullish_percent.toFixed(1)}%` : 'N/A'}
+              value={crowdBullishPercent !== null ? `${crowdBullishPercent.toFixed(1)}%` : 'N/A'}
               color="#2e7d32"
             />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <DataCard 
               title="Bearish %" 
-              value={crowd.bearish_percent ? `${crowd.bearish_percent.toFixed(1)}%` : 'N/A'}
+              value={crowdBearishPercent !== null ? `${crowdBearishPercent.toFixed(1)}%` : 'N/A'}
               color="#d32f2f"
             />
           </Grid>
@@ -180,32 +260,31 @@ export default function Crowd() {
                 <Grid item xs={6}>
                   <Typography variant="subtitle2" color="textSecondary">Bullish Bloggers</Typography>
                   <Typography variant="h5" color="success.main">
-                    {blogger.bullish_articles || blogger.bullish_count || 0}
+                    {bloggerExtracted.bullishArticles}
                   </Typography>
                   <Typography variant="caption" color="textSecondary">
-                    {blogger.bullish_percent ? `${blogger.bullish_percent.toFixed(0)}%` : ''}
+                    {bloggerExtracted.bullishPercent ? `${bloggerExtracted.bullishPercent.toFixed(0)}%` : ''}
                   </Typography>
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="subtitle2" color="textSecondary">Bearish Bloggers</Typography>
                   <Typography variant="h5" color="error.main">
-                    {blogger.bearish_articles || blogger.bearish_count || 0}
+                    {bloggerExtracted.bearishArticles}
                   </Typography>
                   <Typography variant="caption" color="textSecondary">
-                    {blogger.bearish_percent ? `${blogger.bearish_percent.toFixed(0)}%` : ''}
+                    {bloggerExtracted.bearishPercent ? `${bloggerExtracted.bearishPercent.toFixed(0)}%` : ''}
                   </Typography>
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="subtitle2" color="textSecondary">Blogger Sentiment</Typography>
                   <Typography variant="h5">
-                    {blogger.sentiment_score ? blogger.sentiment_score.toFixed(2) : 'N/A'}
+                    {bloggerExtracted.sentimentScore ? bloggerExtracted.sentimentScore.toFixed(2) : 'N/A'}
                   </Typography>
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="subtitle2" color="textSecondary">Total Bloggers</Typography>
                   <Typography variant="h5">
-                    {blogger.total_articles || 
-                     (blogger.bullish_articles || 0) + (blogger.bearish_articles || 0) + (blogger.neutral_articles || 0)}
+                    {bloggerExtracted.totalArticles}
                   </Typography>
                 </Grid>
               </Grid>
