@@ -23,6 +23,20 @@ class ResponseBuilder:
     """
     
     @staticmethod
+    def safe_parse_number(value, default=None):
+        """Safely parse a value that may be string, int, float, or None to a number"""
+        if value is None:
+            return default
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            try:
+                return float(value)
+            except (ValueError, TypeError):
+                return default
+        return default
+    
+    @staticmethod
     def build_analyst_consensus(raw_data: Dict[str, Any], ticker: str) -> Dict[str, Any]:
         """
         Build analyst consensus data from TipRanks API response.
@@ -208,7 +222,7 @@ class ResponseBuilder:
     @staticmethod
     def build_crowd_stats(raw_data: Dict[str, Any], ticker: str, stats_type: str = 'all') -> Dict[str, Any]:
         """
-        Build crowd statistics from TipRanks API response.
+        Build crowd statistics data from raw API response with score-based sentiment.
         
         Extracts from: generalStats{statsType.capitalize()}
         
@@ -218,7 +232,7 @@ class ResponseBuilder:
             stats_type: Type of stats ('all', 'individual', 'institution')
             
         Returns:
-            Dictionary with parsed crowd stats fields
+            Dictionary with parsed crowd stats fields including derived bullish/bearish percentages
         """
         try:
             if isinstance(raw_data, list):
@@ -227,18 +241,76 @@ class ResponseBuilder:
             key = f'generalStats{stats_type.capitalize()}'
             stats_data = raw_data.get(key, {}) or {}
             
+            # Extract score (0-1 range)
+            score = safe_float(stats_data.get('score'))
+            sector_avg = safe_float(stats_data.get('individualSectorAverage'))
+            
+            # Derive bullish/bearish from score
+            # Score > 0.5 indicates bullish, < 0.5 indicates bearish
+            bullish_percent = None
+            bearish_percent = None
+            neutral_percent = None
+            
+            if score is not None:
+                # Convert score to percentage interpretation
+                # Score of 0.5 = 50/50, Score of 1.0 = 100% bullish
+                if score >= 0.5:
+                    bullish_percent = score * 100
+                    bearish_percent = (1 - score) * 100
+                else:
+                    bullish_percent = score * 100
+                    bearish_percent = (1 - score) * 100
+                neutral_percent = 0  # TipRanks crowd doesn't have neutral
+            
+            # Determine sentiment based on score vs sector average
+            sentiment = None
+            if score is not None:
+                if sector_avg is not None:
+                    if score > sector_avg + 0.1:
+                        sentiment = "bullish"
+                    elif score < sector_avg - 0.1:
+                        sentiment = "bearish"
+                    else:
+                        sentiment = "neutral"
+                else:
+                    if score > 0.55:
+                        sentiment = "bullish"
+                    elif score < 0.45:
+                        sentiment = "bearish"
+                    else:
+                        sentiment = "neutral"
+            
+            # Extract other metrics
+            portfolios_holding = safe_int(stats_data.get('portfoliosHolding', 0)) or 0
+            percent_allocated = safe_float(stats_data.get('percentAllocated'))
+            
             return {
                 "ticker": ticker,
-                "portfolio_holding": safe_int(stats_data.get('portfoliosHolding', 0)) or 0,
+                "portfolio_holding": portfolios_holding,
                 "amount_of_portfolios": safe_int(stats_data.get('amountOfPortfolios', 0)) or 0,
                 "amount_of_public_portfolios": safe_int(stats_data.get('amountOfPublicPortfolios', 0)) or 0,
-                "percent_allocated": safe_float(stats_data.get('percentAllocated', 0.0)) or 0.0,
+                "percent_allocated": percent_allocated or 0.0,
                 "based_on_portfolios": safe_int(stats_data.get('basedOnPortfolios', 0)) or 0,
                 "percent_over_last_7d": safe_float(stats_data.get('percentOverLast7Days', 0.0)) or 0.0,
                 "percent_over_last_30d": safe_float(stats_data.get('percentOverLast30Days', 0.0)) or 0.0,
-                "score": safe_float(stats_data.get('score', 0.0)) or 0.0,
-                "individual_sector_average": safe_float(stats_data.get('individualSectorAverage', 0.0)) or 0.0,
+                "score": score or 0.0,
+                "individual_sector_average": sector_avg or 0.0,
                 "frequency": safe_float(stats_data.get('frequency', 0.0)) or 0.0,
+                "crowd_sentiment": sentiment,
+                "bullish_percent": bullish_percent,
+                "bearish_percent": bearish_percent,
+                "neutral_percent": neutral_percent,
+                "sentiment_score": score,
+                "mentions_count": portfolios_holding,
+                "impressions": 0,
+                "engagement_rate": percent_allocated,
+                "trending_score": None,
+                "rank_day": None,
+                "rank_week": None,
+                "total_posts": 0,
+                "unique_users": 0,
+                "avg_sentiment_post": score,
+                "raw_data": raw_data,
             }
         except Exception as e:
             logger.error(f"Error building crowd stats: {e}")
@@ -247,7 +319,7 @@ class ResponseBuilder:
     @staticmethod
     def build_blogger_sentiment(raw_data: Dict[str, Any], ticker: str) -> Dict[str, Any]:
         """
-        Build blogger sentiment from TipRanks API response.
+        Build blogger sentiment data from raw API response with string-to-number conversion.
         
         Extracts from: bloggerSentiment
         
@@ -256,7 +328,7 @@ class ResponseBuilder:
             ticker: Stock ticker symbol
             
         Returns:
-            Dictionary with parsed blogger sentiment fields
+            Dictionary with parsed blogger sentiment fields with converted percentages
         """
         try:
             if isinstance(raw_data, list):
@@ -264,16 +336,53 @@ class ResponseBuilder:
             
             blogger_data = raw_data.get('bloggerSentiment', {}) or {}
             
+            # Convert string percentages to floats/integers
+            def safe_parse_percent(value):
+                """Safely parse percentage value that may be string or number"""
+                if value is None:
+                    return None
+                if isinstance(value, (int, float)):
+                    return float(value)
+                if isinstance(value, str):
+                    try:
+                        return float(value)
+                    except (ValueError, TypeError):
+                        return None
+                return None
+            
+            bullish_percent = safe_parse_percent(blogger_data.get('bullish'))
+            bearish_percent = safe_parse_percent(blogger_data.get('bearish'))
+            neutral_percent = safe_parse_percent(blogger_data.get('neutral'))
+            
+            # Get counts (these are already integers from API)
+            bullish_count = blogger_data.get('bullishCount', 0) or 0
+            bearish_count = blogger_data.get('bearishCount', 0) or 0
+            neutral_count = blogger_data.get('neutralCount', 0) or 0
+            
+            # Calculate neutral_percent if not provided but we have bullish and bearish
+            if neutral_percent is None and bullish_percent is not None and bearish_percent is not None:
+                neutral_percent = 100.0 - bullish_percent - bearish_percent
+                if neutral_percent < 0:
+                    neutral_percent = 0
+            
+            # Get score and avg
+            score = blogger_data.get('score')
+            avg = blogger_data.get('avg')
+            
             return {
                 "ticker": ticker,
-                "bearish": safe_int(blogger_data.get('bearish', 0)) or 0,
-                "neutral": safe_int(blogger_data.get('neutral', 0)) or 0,
-                "bullish": safe_int(blogger_data.get('bullish', 0)) or 0,
-                "bearish_count": safe_int(blogger_data.get('bearishCount', 0)) or 0,
-                "neutral_count": safe_int(blogger_data.get('neutralCount', 0)) or 0,
-                "bullish_count": safe_int(blogger_data.get('bullishCount', 0)) or 0,
-                "score": safe_float(blogger_data.get('score', 0.0)) or 0.0,
-                "avg": safe_float(blogger_data.get('avg', 0.0)) or 0.0,
+                "bearish": bearish_percent,
+                "neutral": neutral_percent,
+                "bullish": bullish_percent,
+                "bearish_count": bearish_count,
+                "neutral_count": neutral_count,
+                "bullish_count": bullish_count,
+                "score": score,
+                "avg": avg,
+                "bullish_percent": bullish_percent,
+                "bearish_percent": bearish_percent,
+                "neutral_percent": neutral_percent,
+                "raw_data": raw_data,
             }
         except Exception as e:
             logger.error(f"Error building blogger sentiment: {e}")
