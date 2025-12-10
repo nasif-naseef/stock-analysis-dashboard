@@ -134,7 +134,8 @@ export default function Crowd() {
     // The score indicates overall sentiment, convert to a pseudo-percentage
     const score = getCrowdSentimentScore();
     if (score !== null && score !== undefined) {
-      // Score is 0-1 range, convert to percentage interpretation
+      // Score is typically in 0-1 range from sentiment analysis
+      // Convert to percentage interpretation (0-100)
       return score * 100;
     }
     return null;
