@@ -153,7 +153,7 @@ class TestCrowdStatisticsDataExtraction:
         # bullish_percent = 43.0 (score * 100)
         # bearish_percent = 57.0 ((1 - score) * 100)
         assert result['bullish_percent'] == 43.0, "Should derive bullish from score"
-        assert result['bearish_percent'] == 57.0, "Should derive bearish from 1-score"
+        assert abs(result['bearish_percent'] - 57.0) < 0.01, "Should derive bearish from 1-score"
         assert result['neutral_percent'] == 0, "TipRanks crowd doesn't have neutral"
         
         # Verify sentiment_score is set
@@ -269,7 +269,7 @@ class TestCrowdStatisticsDataExtraction:
         
         # Verify derived percentages
         assert result['bullish_percent'] == 43.0
-        assert result['bearish_percent'] == 57.0
+        assert abs(result['bearish_percent'] - 57.0) < 0.01
 
 
 class TestHelperFunctions:
