@@ -88,14 +88,14 @@ export default function Crowd() {
     if (blogger.raw_data?.bloggerSentiment) {
       const rawBlogger = blogger.raw_data.bloggerSentiment;
       
-      // Extract counts
-      if (!bullishArticles && rawBlogger.bullishCount) {
+      // Extract counts (use explicit null/undefined checks to preserve zero values)
+      if ((bullishArticles === null || bullishArticles === undefined) && rawBlogger.bullishCount !== undefined) {
         bullishArticles = rawBlogger.bullishCount;
       }
-      if (!bearishArticles && rawBlogger.bearishCount) {
+      if ((bearishArticles === null || bearishArticles === undefined) && rawBlogger.bearishCount !== undefined) {
         bearishArticles = rawBlogger.bearishCount;
       }
-      if (!neutralArticles && rawBlogger.neutralCount) {
+      if ((neutralArticles === null || neutralArticles === undefined) && rawBlogger.neutralCount !== undefined) {
         neutralArticles = rawBlogger.neutralCount;
       }
       
@@ -155,6 +155,8 @@ export default function Crowd() {
   const sentimentScore = getCrowdSentimentScore();
   const mentionsCount = getCrowdMentions();
   const bloggerExtracted = getBloggerData();
+  const crowdBullishPercent = getCrowdBullishPercent();
+  const crowdBearishPercent = getCrowdBearishPercent();
 
   return (
     <Box>
@@ -186,14 +188,14 @@ export default function Crowd() {
           <Grid item xs={12} sm={6} md={3}>
             <DataCard 
               title="Bullish %" 
-              value={getCrowdBullishPercent() !== null ? `${getCrowdBullishPercent().toFixed(1)}%` : 'N/A'}
+              value={crowdBullishPercent !== null ? `${crowdBullishPercent.toFixed(1)}%` : 'N/A'}
               color="#2e7d32"
             />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <DataCard 
               title="Bearish %" 
-              value={getCrowdBearishPercent() !== null ? `${getCrowdBearishPercent().toFixed(1)}%` : 'N/A'}
+              value={crowdBearishPercent !== null ? `${crowdBearishPercent.toFixed(1)}%` : 'N/A'}
               color="#d32f2f"
             />
           </Grid>
